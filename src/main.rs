@@ -43,14 +43,25 @@ mod ast {
     #[derive(Debug, FromPest)]
     #[pest_ast(rule(Rule::expression))]
     pub struct Expression {
-        pub leaves: Vec<Leaf>,
+        pub nodes: Vec<ExpressionNode>,
     }
 
     #[derive(Debug, FromPest)]
-    #[pest_ast(rule(Rule::leaf))]
-    pub enum Leaf {
+    #[pest_ast(rule(Rule::expression_node))]
+    pub enum ExpressionNode {
         Symbol(Symbol),
+        Operator(Operator),
         IntegerLiteral(IntegerLiteral),
+        Expression(Expression),
+    }
+
+    #[derive(Debug, FromPest)]
+    #[pest_ast(rule(Rule::operator))]
+    pub enum Operator {
+        SumOp,
+        SubtractOp,
+        DivideOp,
+        MultiplyOp,
     }
 
     #[derive(Debug, FromPest)]

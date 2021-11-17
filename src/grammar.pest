@@ -1,9 +1,10 @@
 WHITESPACE = _{ " " | "\t" }
-COMMENT = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
+COMMENT = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" ~ NEWLINE* }
 program = { SOI ~ statement+ ~ EOI }
 statement = { (definition | expression) ~ NEWLINE* }
 definition = { symbol+ ~ "=" ~ expression }
-expression = { leaf+ }
-leaf = { integer_literal | symbol }
+expression = { expression_node+ }
+expression_node = { integer_literal | operator | symbol | ("(" ~ expression ~ ")") }
+operator = { "+" | "-" | "/" | "*" }
 integer_literal = @{ "-"? ~ ASCII_DIGIT+ }
 symbol = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "-" | ".")* }
