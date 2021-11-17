@@ -4,7 +4,7 @@ program = { SOI ~ statement+ ~ EOI }
 statement = { (definition | expression) ~ NEWLINE* }
 definition = { symbol+ ~ "=" ~ expression }
 expression = { expression_node+ }
-expression_node = { integer_literal | builtin | symbol | ("(" ~ expression ~ ")") }
+expression_node = { integer_literal | builtin | symbol }
 builtin = { "+" | "-" | "/" | "*" }
 integer_literal = @{ "-"? ~ ASCII_DIGIT+ }
 symbol = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "-" | ".")* }
