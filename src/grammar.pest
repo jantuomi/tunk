@@ -1,0 +1,9 @@
+WHITESPACE = _{ " " | "\t" }
+COMMENT = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
+program = { SOI ~ statement+ ~ EOI }
+statement = { (definition | expression) ~ NEWLINE* }
+definition = { symbol+ ~ "=" ~ expression }
+expression = { leaf+ }
+leaf = { integer_literal | symbol }
+integer_literal = @{ "-"? ~ ASCII_DIGIT+ }
+symbol = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "-" | ".")* }
