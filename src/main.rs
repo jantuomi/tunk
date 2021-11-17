@@ -50,14 +50,14 @@ mod ast {
     #[pest_ast(rule(Rule::expression_node))]
     pub enum ExpressionNode {
         Symbol(Symbol),
-        Operator(Operator),
+        Builtin(Builtin),
         IntegerLiteral(IntegerLiteral),
         Expression(Expression),
     }
 
-    #[derive(Debug, FromPest)]
-    #[pest_ast(rule(Rule::operator))]
-    pub enum Operator {
+    #[derive(Debug, FromPest, Copy, Clone)]
+    #[pest_ast(rule(Rule::builtin))]
+    pub enum Builtin {
         SumOp,
         SubtractOp,
         DivideOp,
@@ -83,6 +83,74 @@ mod ast {
     struct EOI;
 }
 
+mod runtime {
+    use super::ast;
+    use std::collections::HashMap;
+
+    pub enum RuntimeExpression {
+        Integer(i64),
+        BuiltinFunction(ast::Builtin, Box<RuntimeExpression>),
+    }
+
+    pub fn evaluate(ast: &ast::Program) {
+        let mut _symbol_table: HashMap<String, RuntimeExpression> = HashMap::new();
+
+        fn evaluate_nonary(node: &ast::ExpressionNode) -> Box<RuntimeExpression> {
+            match node {
+                ast::ExpressionNode::IntegerLiteral(literal) => {
+                    Box::new(RuntimeExpression::Integer(literal.value))
+                }
+                _ => todo!("_ case of evaluate_nonary"),
+            }
+        }
+
+        fn evaluate_unary(
+            node: &ast::ExpressionNode,
+            arg: &ast::ExpressionNode,
+        ) -> Box<RuntimeExpression> {
+            let evaluated_arg = evaluate_expression_node(arg);
+            match node {
+                ast::ExpressionNode::Builtin(builtin) => {
+                    Box::new(RuntimeExpression::BuiltinFunction(*builtin, evaluated_arg))
+                }
+                _ => todo!("_ case of evaluate_unary"),
+            }
+        }
+
+        fn evaluate_expression_node(node: &ast::ExpressionNode) -> Box<RuntimeExpression> {
+            match node {
+                ast::ExpressionNode::Expression(expr) => evaluate_expression(expr),
+                _ => todo!("_ case of evaluate_expression_node"),
+            }
+        }
+
+        fn evaluate_expression(expression: &ast::Expression) -> Box<RuntimeExpression> {
+            let nodes = &expression.nodes;
+            return match nodes.len() {
+                1 => evaluate_nonary(&nodes[0]),
+                2 => evaluate_unary(&nodes[0], &nodes[1]),
+                _ => todo!("_ case of evaluate_expression"),
+            };
+        }
+
+        for statement in &ast.statements {
+            let runtime_expr = match statement {
+                ast::Statement::Expression(expression) => evaluate_expression(&expression),
+                ast::Statement::Definition(_) => {
+                    panic!("unsupported statement type: definition")
+                }
+            };
+
+            match *runtime_expr {
+                RuntimeExpression::Integer(value) => println!("{}", value),
+                RuntimeExpression::BuiltinFunction(builtin, _arg) => match builtin {
+                    _ => todo!("_ case of runtime_expr eval handling"),
+                },
+            }
+        }
+    }
+}
+
 fn main() {
     use ast::Program;
     use from_pest::FromPest;
@@ -96,6 +164,8 @@ fn main() {
     println!("parse tree = {:#?}", parse_tree);
     let syntax_tree: Program = Program::from_pest(&mut parse_tree).expect("infallible");
     println!("syntax tree = {:#?}", syntax_tree);
+
+    runtime::evaluate(&syntax_tree);
 
     // let tokens = program.
 
