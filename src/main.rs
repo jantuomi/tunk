@@ -123,6 +123,46 @@ mod ast {
     pub type Symbol = String;
 }
 
+mod runtime {
+    use super::ast;
+    use std::collections::HashMap;
+
+    #[derive(Debug)]
+    pub enum Value {
+        Integer(i64),
+        String(String),
+    }
+
+    fn evaluate_expr(expression: &ast::Expression) -> Value {
+        // println!("[runtime] evaluating expression");
+        Value::String(String::from("dummy value"))
+    }
+
+    pub fn evaluate(program: &ast::Program) {
+        let mut symbol_table: HashMap<String, Value> = HashMap::new();
+
+        for statement in program {
+            match statement {
+                ast::Statement::Definition { symbol, expression } => {
+                    println!("[runtime] evaluating definition for symbol: {:#?}", symbol);
+                    let value = evaluate_expr(expression);
+                    symbol_table.insert(symbol.clone(), value);
+                }
+                ast::Statement::Expression(expression) => {
+                    println!("[runtime] evaluating free-standing expression");
+                    let value = evaluate_expr(expression);
+                    println!("Result: {:#?}", value);
+                }
+            }
+        }
+
+        println!(
+            "[runtime] evaluation done, symbol_table state dump: {:#?}",
+            symbol_table
+        );
+    }
+}
+
 fn main() {
     use ast::Program;
     use pest::Parser;
@@ -132,33 +172,9 @@ fn main() {
     let mut parse_tree =
         parser::Parser::parse(parser::Rule::program, &unparsed_file).expect("unsuccessful parse");
 
-    println!("parse tree = {:#?}", parse_tree);
+    // println!("parse tree = {:#?}", parse_tree);
     let syntax_tree: Program = ast::from_parse_tree(&mut parse_tree);
     println!("syntax tree = {:#?}", syntax_tree);
 
-    // let ir_tree = ir::left_associate_exprs(&syntax_tree);
-    // println!("ir tree = {:#?}", ir_tree);
-
-    // runtime::evaluate(&ir_tree);
-
-    // let tokens = program.
-
-    // for token in program.tokens() {
-    //     println!("{:?}", token);
-    // }
-
-    // println!("{}", program)
-
-    // for statement in program.into_inner() {
-    //     match statement.as_rule() {
-    //         Rule::statement => {
-    //             println!("{}", statement.as_str());
-    //         }
-    //         Rule::EOI => (),
-    //         _ => unreachable!(),
-    //     }
-    // }
-
-    // println!("Sum of fields: {}", field_sum);
-    // println!("Number of records: {}", record_count);
+    runtime::evaluate(&syntax_tree);
 }
