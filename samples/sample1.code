@@ -1,1 +1,8 @@
-my-func 1 2
+foo = "foo";
+bar = "bar";
+int.double = int.multiply 2;
+list.multiply-all = reduce int.multiply 1;
+
+ifelse (string.eq? foo bar)
+    (int.double 1) # if foo = bar, calc 1 * 2
+    (int.double 2) # else, calc 2 * 2
