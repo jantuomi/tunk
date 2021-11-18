@@ -1,7 +1,7 @@
 COMMENT = _{ "#" ~ (!("#" | NEWLINE) ~ ANY)* ~ NEWLINE* }
 WHITESPACE = _{ " " | "\t" | NEWLINE }
 program = { SOI ~ statement+ ~ EOI }
-statement = { (definition | expression)}
+statement = { (definition | expression) }
 definition = { symbol ~ "=" ~ expression ~ ";"+ }
 expression = { (symbol | integer_literal | string_literal | ("(" ~ expression ~ ")"))+ }
 integer_literal = @{ "-"? ~ ASCII_DIGIT+ }

@@ -1,8 +1,6 @@
 #[macro_use]
 extern crate pest_derive;
-extern crate from_pest;
 #[macro_use]
-extern crate pest_ast;
 extern crate pest;
 
 mod parser {
@@ -11,173 +9,122 @@ mod parser {
     pub struct Parser;
 }
 
-// mod ast {
-//     use super::parser::Rule;
-//     use pest::Span;
+mod ast {
+    use super::parser::Rule;
+    use pest::Span;
 
-//     fn span_into_str(span: Span) -> &str {
-//         span.as_str()
-//     }
+    fn span_into_str(span: Span) -> &str {
+        span.as_str()
+    }
 
-//     #[derive(Debug, FromPest)]
-//     #[pest_ast(rule(Rule::program))]
-//     pub struct Program {
-//         pub statements: Vec<Statement>,
-//         pub eoi: EOI,
-//     }
+    pub fn from_parse_tree(parse_tree: &mut pest::iterators::Pairs<Rule>) -> Program {
+        let root = parse_tree.next().unwrap();
 
-//     #[derive(Debug, FromPest)]
-//     #[pest_ast(rule(Rule::statement))]
-//     pub enum Statement {
-//         Definition(Definition),
-//         Expression(Expression),
-//     }
+        match root.as_rule() {
+            Rule::program => {
+                let statements_with_eoi: Vec<pest::iterators::Pair<Rule>> =
+                    root.into_inner().collect();
+                let statements_split = statements_with_eoi.split_last().unwrap();
+                let statements = statements_split.1.to_vec();
 
-//     #[derive(Debug, FromPest)]
-//     #[pest_ast(rule(Rule::definition))]
-//     pub struct Definition {
-//         pub symbols: Vec<Symbol>,
-//         pub expression: Expression,
-//     }
+                statements
+                    .iter()
+                    .map(|s| Statement::from_pair(s.clone()))
+                    .collect()
+            }
+            _ => panic!("[ast] first Pair is not a program"),
+        }
+    }
 
-//     #[derive(Debug, FromPest, Clone)]
-//     #[pest_ast(rule(Rule::expression))]
-//     pub enum Expression {
-//         IntegerLiteral(IntegerLiteral),
-//         Symbol(Symbol),
-//         SubExpressions(Vec<Expression>),
-//     }
+    pub type Program = Vec<Statement>;
 
-//     #[derive(Debug, FromPest, Copy, Clone)]
-//     #[pest_ast(rule(Rule::integer_literal))]
-//     pub struct IntegerLiteral {
-//         #[pest_ast(outer(with(span_into_str), with(str::parse::<i64>), with(Result::unwrap)))]
-//         pub value: i64,
-//     }
+    #[derive(Debug)]
+    pub enum Statement {
+        Definition {
+            symbol: Symbol,
+            expression: Expression,
+        },
+        Expression(Expression),
+    }
 
-//     #[derive(Debug, FromPest, Clone)]
-//     #[pest_ast(rule(Rule::symbol))]
-//     pub struct Symbol {
-//         #[pest_ast(outer(with(span_into_str), with(String::from)))]
-//         pub value: String,
-//     }
+    impl Statement {
+        fn from_pair(pair: pest::iterators::Pair<Rule>) -> Statement {
+            // println!("Statement::from_pair pair: {:#?}", pair);
+            let def_or_expr = pair.into_inner().next().unwrap();
 
-//     #[derive(Debug, FromPest, Copy, Clone)]
-//     #[pest_ast(rule(Rule::EOI))]
-//     pub struct EOI;
-// }
+            fn definition_from_pair(pair: pest::iterators::Pair<Rule>) -> Statement {
+                let mut inner = pair.into_inner();
+                let symbol = inner.next().unwrap().as_span().as_str();
+                let expression = inner.next().unwrap();
+                let expression_inners: Vec<ExpressionInner> = expression
+                    .into_inner()
+                    .map(ExpressionInner::from_pair)
+                    .collect();
 
-// mod ir {
-//     use super::ast;
+                Statement::Definition {
+                    symbol: String::from(symbol),
+                    expression: expression_inners,
+                }
+            }
 
-//     pub fn left_associate_exprs(program: &ast::Program) -> ast::Program {
-//         fn associate(expr: &ast::Expression) -> ast::Expression {
-//             match expr.nodes.len() {
-//                 1 | 2 => expr.clone(),
-//                 3.. => {
-//                     let inner_node = ast::ExpressionNode::SubNodes(expr.nodes[0..2].to_vec());
-//                     let rest = expr.nodes[2..].to_vec();
-//                     let mut new_nodes = vec![inner_node];
-//                     new_nodes.extend(rest);
-//                     let outer_node = ast::Expression { nodes: new_nodes };
-//                     associate(&outer_node)
-//                 }
-//                 _ => unreachable!(),
-//             }
-//         }
+            match def_or_expr.as_rule() {
+                Rule::definition => definition_from_pair(def_or_expr),
+                Rule::expression => {
+                    let expression_inners: Vec<ExpressionInner> = def_or_expr
+                        .into_inner()
+                        .map(ExpressionInner::from_pair)
+                        .collect();
+                    Statement::Expression(expression_inners)
+                }
+                rule => panic!("[ast] can't make a statement from {:#?}", rule),
+            }
+        }
+    }
 
-//         let statements = program
-//             .statements
-//             .iter()
-//             .map(|s| match s {
-//                 ast::Statement::Expression(expr) => ast::Statement::Expression(associate(expr)),
-//                 ast::Statement::Definition(def) => ast::Statement::Definition(ast::Definition {
-//                     symbols: def.symbols.clone(),
-//                     expression: associate(&def.expression),
-//                 }),
-//             })
-//             .collect();
+    #[derive(Debug)]
+    pub enum ExpressionInner {
+        Symbol(Symbol),
+        IntegerLiteral(IntegerLiteral),
+        StringLiteral(StringLiteral),
+        Expression(Expression),
+    }
 
-//         ast::Program {
-//             statements,
-//             eoi: program.eoi.clone(),
-//         }
-//     }
-// }
+    impl ExpressionInner {
+        fn from_pair(pair: pest::iterators::Pair<Rule>) -> ExpressionInner {
+            // println!("ExpressionInner::from_pair pair: {:#?}", pair);
 
-// mod runtime {
-//     use super::ast;
-//     use std::collections::HashMap;
-//     use std::rc::Rc;
+            match pair.as_rule() {
+                Rule::symbol => ExpressionInner::Symbol(string_from_pair(pair)),
+                Rule::integer_literal => ExpressionInner::IntegerLiteral(integer_from_pair(pair)),
+                Rule::string_literal => ExpressionInner::StringLiteral(string_from_pair(pair)),
+                Rule::expression => {
+                    let expression_inners: Vec<ExpressionInner> =
+                        pair.into_inner().map(ExpressionInner::from_pair).collect();
+                    ExpressionInner::Expression(expression_inners)
+                }
+                rule => panic!("[ast] can't make an expression element from {:#?}", rule),
+            }
+        }
+    }
 
-//     #[derive(Debug)]
-//     pub enum BuiltinFn {
-//         Const(i64),
-//     }
+    pub type Expression = Vec<ExpressionInner>;
 
-//     #[derive(Debug)]
-//     pub enum Function {
-//         Builtin(BuiltinFn),
-//     }
+    pub type IntegerLiteral = i64;
+    fn integer_from_pair(pair: pest::iterators::Pair<Rule>) -> i64 {
+        let s = pair.as_span().as_str();
+        s.parse().unwrap()
+    }
 
-//     pub fn evaluate(ast: &ast::Program) {
-//         let mut symbol_table: HashMap<String, Rc<Function>> = HashMap::new();
+    pub type StringLiteral = String;
+    fn string_from_pair(pair: pest::iterators::Pair<Rule>) -> String {
+        String::from(pair.as_span().as_str())
+    }
 
-//         // symbol_table.insert(String::from("const"));
-
-//         // fn apply_function(function: &Function, arg: &Function) -> Function {
-//         //     match function {
-//         //         Function::Builtin(builtin_fn) => match builtin_fn {
-//         //             BuiltinFn::Const(value) => Function::Builtin(BuiltinFn::Const(*value)),
-//         //         },
-//         //     }
-//         // }
-
-//         fn evaluate_nonary(
-//             table: &HashMap<String, Rc<Function>>,
-//             lhs: &ast::ExpressionNode,
-//         ) -> Rc<Function> {
-//             match lhs {
-//                 ast::ExpressionNode::IntegerLiteral(literal) => {
-//                     Rc::new(Function::Builtin(BuiltinFn::Const(literal.value)))
-//                 }
-//                 ast::ExpressionNode::Symbol(symbol) => match symbol.value.as_str() {
-//                     "math-zero" => Rc::new(Function::Builtin(BuiltinFn::Const(0))),
-//                     sym => (*table.get(sym).expect("symbol not found")).clone(),
-//                 },
-//                 _ => todo!("_ case in evaluate_nonary"),
-//             }
-//         }
-
-//         fn evaluate_unary(
-//             table: &HashMap<String, Rc<Function>>,
-//             lhs: &ast::ExpressionNode,
-//             rhs: &ast::ExpressionNode,
-//         ) -> Rc<Function> {
-//             let rhs_evaled = evaluate_nonary(&table, rhs);
-//             todo!("evaluate_unary")
-//         }
-
-//         for statement in &ast.statements {
-//             let res: Rc<Function> = match statement {
-//                 ast::Statement::Expression(expression) => match expression.nodes.len() {
-//                     1 => evaluate_nonary(&symbol_table, &expression.nodes[0]),
-//                     2 => evaluate_unary(&symbol_table, &expression.nodes[0], &expression.nodes[1]),
-//                     _ => unreachable!("expr arity > 2"),
-//                 },
-//                 ast::Statement::Definition(_) => {
-//                     panic!("unsupported statement type: definition")
-//                 }
-//             };
-
-//             println!("Result: {:#?}", res)
-//         }
-//     }
-// }
+    pub type Symbol = String;
+}
 
 fn main() {
-    // use ast::Program;
-    use from_pest::FromPest;
+    use ast::Program;
     use pest::Parser;
     use std::fs;
 
@@ -186,8 +133,8 @@ fn main() {
         parser::Parser::parse(parser::Rule::program, &unparsed_file).expect("unsuccessful parse");
 
     println!("parse tree = {:#?}", parse_tree);
-    // let syntax_tree: Program = Program::from_pest(&mut parse_tree).expect("infallible");
-    // println!("syntax tree = {:#?}", syntax_tree);
+    let syntax_tree: Program = ast::from_parse_tree(&mut parse_tree);
+    println!("syntax tree = {:#?}", syntax_tree);
 
     // let ir_tree = ir::left_associate_exprs(&syntax_tree);
     // println!("ir tree = {:#?}", ir_tree);
