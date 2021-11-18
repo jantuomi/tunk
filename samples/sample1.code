@@ -1,8 +1,10 @@
 foo = "foo";
-bar = "bar";
+number-of-the-beast = 666;
+my-number = number-of-the-beast; # value lookup
+num = int.zero; # builtin value
 int.double = int.multiply 2;
 list.multiply-all = reduce int.multiply 1;
 
-ifelse (string.eq? foo bar)
-    (int.double 1) # if foo = bar, calc 1 * 2
-    (int.double 2) # else, calc 2 * 2
+ifelse (string.eq? foo "bar")
+    (int.double 1) # if foo = "bar", calc 1 * 2
+    number-of-the-beast # else, number of the beast

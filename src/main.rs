@@ -11,11 +11,6 @@ mod parser {
 
 mod ast {
     use super::parser::Rule;
-    use pest::Span;
-
-    fn span_into_str(span: Span) -> &str {
-        span.as_str()
-    }
 
     pub fn from_parse_tree(parse_tree: &mut pest::iterators::Pairs<Rule>) -> Program {
         let root = parse_tree.next().unwrap();
@@ -49,7 +44,6 @@ mod ast {
 
     impl Statement {
         fn from_pair(pair: pest::iterators::Pair<Rule>) -> Statement {
-            // println!("Statement::from_pair pair: {:#?}", pair);
             let def_or_expr = pair.into_inner().next().unwrap();
 
             fn definition_from_pair(pair: pest::iterators::Pair<Rule>) -> Statement {
@@ -96,7 +90,14 @@ mod ast {
             match pair.as_rule() {
                 Rule::symbol => ExpressionInner::Symbol(string_from_pair(pair)),
                 Rule::integer_literal => ExpressionInner::IntegerLiteral(integer_from_pair(pair)),
-                Rule::string_literal => ExpressionInner::StringLiteral(string_from_pair(pair)),
+                Rule::string_literal => {
+                    let s_with_quotes = string_from_pair(pair);
+                    let mut chars = s_with_quotes.chars();
+                    chars.next();
+                    chars.next_back();
+                    let s = chars.as_str();
+                    ExpressionInner::StringLiteral(String::from(s))
+                }
                 Rule::expression => {
                     let expression_inners: Vec<ExpressionInner> =
                         pair.into_inner().map(ExpressionInner::from_pair).collect();
@@ -127,15 +128,48 @@ mod runtime {
     use super::ast;
     use std::collections::HashMap;
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub enum Value {
         Integer(i64),
         String(String),
     }
 
-    fn evaluate_expr(expression: &ast::Expression) -> Value {
+    fn try_evaluate_builtin(symbol: &ast::Symbol) -> Option<Value> {
+        match symbol.as_str() {
+            "int.zero" => Some(Value::Integer(0)),
+            _ => None,
+        }
+    }
+
+    fn evaluate_expr(symbol_table: &HashMap<String, Value>, expression: &ast::Expression) -> Value {
         // println!("[runtime] evaluating expression");
-        Value::String(String::from("dummy value"))
+        let head = &expression[0];
+        let tail = &expression[1..];
+        let arity = tail.len();
+        match head {
+            ast::ExpressionInner::IntegerLiteral(value) => match arity {
+                0 => Value::Integer(*value),
+                _ => panic!("[runtime] cannot apply integer: {}", value),
+            },
+            ast::ExpressionInner::StringLiteral(value) => match arity {
+                0 => Value::String(value.clone()),
+                _ => panic!("[runtime] cannot apply string: {}", value),
+            },
+            ast::ExpressionInner::Symbol(value) => {
+                let builtin_value = try_evaluate_builtin(value);
+                if builtin_value.is_some() {
+                    return builtin_value.unwrap();
+                }
+
+                let table_lookup_value = symbol_table.get(value);
+                if table_lookup_value.is_some() {
+                    return table_lookup_value.unwrap().clone();
+                }
+
+                Value::String(String::from("dummy value"))
+            }
+            ast::ExpressionInner::Expression(expression) => evaluate_expr(symbol_table, expression),
+        }
     }
 
     pub fn evaluate(program: &ast::Program) {
@@ -144,13 +178,13 @@ mod runtime {
         for statement in program {
             match statement {
                 ast::Statement::Definition { symbol, expression } => {
-                    println!("[runtime] evaluating definition for symbol: {:#?}", symbol);
-                    let value = evaluate_expr(expression);
+                    println!("[runtime] defining symbol: {:#?}", symbol);
+                    let value = evaluate_expr(&symbol_table, expression);
                     symbol_table.insert(symbol.clone(), value);
                 }
                 ast::Statement::Expression(expression) => {
                     println!("[runtime] evaluating free-standing expression");
-                    let value = evaluate_expr(expression);
+                    let value = evaluate_expr(&symbol_table, expression);
                     println!("Result: {:#?}", value);
                 }
             }
