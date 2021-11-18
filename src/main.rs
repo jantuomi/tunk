@@ -203,8 +203,14 @@ fn main() {
     use std::fs;
 
     let unparsed_file = fs::read_to_string("samples/sample1.code").expect("cannot read file");
-    let mut parse_tree =
-        parser::Parser::parse(parser::Rule::program, &unparsed_file).expect("unsuccessful parse");
+    let parse_tree_result = parser::Parser::parse(parser::Rule::program, &unparsed_file);
+
+    if parse_tree_result.is_err() {
+        println!("{}", parse_tree_result.unwrap_err());
+        return;
+    }
+
+    let mut parse_tree = parse_tree_result.unwrap();
 
     // println!("parse tree = {:#?}", parse_tree);
     let syntax_tree: Program = ast::from_parse_tree(&mut parse_tree);

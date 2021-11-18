@@ -1,6 +1,6 @@
 foo = "foo";
 number-of-the-beast = 666;
-my-number = number-of-the-beast; # value lookup
+cool-number = number-of-the-beast; # value lookup
 num = int.zero; # builtin value
 int.double = int.multiply 2;
 list.multiply-all = reduce int.multiply 1;
