@@ -127,53 +127,100 @@ mod ast {
 mod runtime {
     use super::ast;
     use std::collections::HashMap;
+    use std::rc::Rc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[derive(Debug, Clone)]
     pub enum Value {
         Integer(i64),
         String(String),
+        Var(usize),
+        Function(usize, Rc<Value>),
     }
+
+    static VAR_ID_INC: AtomicUsize = AtomicUsize::new(0);
 
     fn try_evaluate_builtin(symbol: &ast::Symbol) -> Option<Value> {
         match symbol.as_str() {
             "int.zero" => Some(Value::Integer(0)),
+            "id" => {
+                let v = VAR_ID_INC.load(Ordering::Relaxed);
+                VAR_ID_INC.store(v + 1, Ordering::Relaxed);
+                Some(Value::Function(v, Rc::new(Value::Var(v))))
+            }
             _ => None,
         }
     }
 
-    fn evaluate_expr(symbol_table: &HashMap<String, Value>, expression: &ast::Expression) -> Value {
+    fn try_apply_function(func_rc: Rc<Value>, arg: Rc<Value>, bound_v: Option<usize>) -> Rc<Value> {
+        let func = &*func_rc;
+        match func {
+            Value::Function(func_v, body_rc) => {
+                let v1 = bound_v.unwrap_or(*func_v);
+                let body = &**body_rc;
+                match body {
+                    Value::Var(v2) => {
+                        if v1 == *v2 {
+                            arg
+                        } else {
+                            (*body_rc).clone()
+                        }
+                    }
+                    Value::Function(_, _) => try_apply_function((*body_rc).clone(), arg, Some(v1)),
+                    _ => (*body_rc).clone(),
+                }
+            }
+            _ => func_rc,
+        }
+    }
+
+    fn evaluate_expr(
+        symbol_table: &HashMap<String, Rc<Value>>,
+        expression: &ast::Expression,
+    ) -> Rc<Value> {
         // println!("[runtime] evaluating expression");
         let head = &expression[0];
         let tail = &expression[1..];
         let arity = tail.len();
         match head {
             ast::ExpressionInner::IntegerLiteral(value) => match arity {
-                0 => Value::Integer(*value),
+                0 => Rc::new(Value::Integer(*value)),
                 _ => panic!("[runtime] cannot apply integer: {}", value),
             },
             ast::ExpressionInner::StringLiteral(value) => match arity {
-                0 => Value::String(value.clone()),
+                0 => Rc::new(Value::String(value.clone())),
                 _ => panic!("[runtime] cannot apply string: {}", value),
             },
-            ast::ExpressionInner::Symbol(value) => {
-                let builtin_value = try_evaluate_builtin(value);
-                if builtin_value.is_some() {
-                    return builtin_value.unwrap();
-                }
+            ast::ExpressionInner::Symbol(value) => match arity {
+                0 => {
+                    let builtin_value = try_evaluate_builtin(value);
+                    if builtin_value.is_some() {
+                        return Rc::new(builtin_value.unwrap());
+                    }
 
-                let table_lookup_value = symbol_table.get(value);
-                if table_lookup_value.is_some() {
-                    return table_lookup_value.unwrap().clone();
-                }
+                    let table_lookup_value = symbol_table.get(value);
+                    if table_lookup_value.is_some() {
+                        let lookup_rc = table_lookup_value.unwrap();
+                        return lookup_rc.clone();
+                    }
 
-                Value::String(String::from("dummy value"))
-            }
+                    Rc::new(Value::String(String::from("dummy value")))
+                }
+                1 => {
+                    // let arg = &tail[0];
+                    // let applied = try_apply_function(value, arg, None);
+                    panic!("should apply function here!")
+                }
+                _ => unreachable!(
+                    "[runtime] expression arity >= 2! there must be an error in AST generation"
+                ),
+            },
             ast::ExpressionInner::Expression(expression) => evaluate_expr(symbol_table, expression),
         }
     }
 
     pub fn evaluate(program: &ast::Program) {
-        let mut symbol_table: HashMap<String, Value> = HashMap::new();
+        let mut symbol_table: HashMap<String, Rc<Value>> = HashMap::new();
 
         for statement in program {
             match statement {
@@ -200,9 +247,12 @@ mod runtime {
 fn main() {
     use ast::Program;
     use pest::Parser;
+    use std::env;
     use std::fs;
 
-    let unparsed_file = fs::read_to_string("samples/sample1.code").expect("cannot read file");
+    let script_path = env::args().nth(1).expect("no script file specified");
+
+    let unparsed_file = fs::read_to_string(script_path).expect("cannot read file");
     let parse_tree_result = parser::Parser::parse(parser::Rule::program, &unparsed_file);
 
     if parse_tree_result.is_err() {
@@ -212,7 +262,7 @@ fn main() {
 
     let mut parse_tree = parse_tree_result.unwrap();
 
-    // println!("parse tree = {:#?}", parse_tree);
+    println!("parse tree = {:#?}", parse_tree);
     let syntax_tree: Program = ast::from_parse_tree(&mut parse_tree);
     println!("syntax tree = {:#?}", syntax_tree);
 

@@ -8,5 +8,3 @@ edition = "2021"
 [dependencies]
 pest = "2.0"
 pest_derive = "2.0"
-pest-ast = "0.3"
-from-pest = "0.3.1"
