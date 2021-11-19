@@ -214,7 +214,30 @@ mod runtime {
                     evaluate_expr(symbol_table, sub_expr)
                 }
             },
-            ast::Expression::Binary(inner1, inner2) => todo!("[runtime] binary expressions"),
+            ast::Expression::Binary(inner1, inner2) => match inner1 {
+                ast::ExpressionInner::Expression(value_rc) => {
+                    let sub_expr = &**value_rc;
+                    evaluate_expr(symbol_table, sub_expr)
+                }
+                ast::ExpressionInner::Symbol(value) => {
+                    let mut lhs_value_rc: Rc<Value>;
+
+                    if let Some(builtin) = try_evaluate_builtin(value) {
+                        lhs_value_rc = Rc::new(builtin);
+                    } else if let Some(lookup) = symbol_table.get(value) {
+                        lhs_value_rc = *lookup;
+                    } else {
+                        panic!("[runtime] symbol not defined: {:#?}", value);
+                    }
+
+                    let evaled_arg = evaluate_expr_inner(inner2);
+                    try_apply_function(lhs_value_rc, evaled_arg, None)
+                }
+                other => unreachable!(
+                    "[runtime] this should not be on the left side of a binary expression: {:#?}",
+                    other
+                ),
+            },
         }
 
         // println!("[runtime] evaluating expression");
