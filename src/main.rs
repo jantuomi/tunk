@@ -11,6 +11,7 @@ mod parser {
 
 mod ast {
     use super::parser::Rule;
+    use std::rc::Rc;
 
     pub fn from_parse_tree(parse_tree: &mut pest::iterators::Pairs<Rule>) -> Program {
         let root = parse_tree.next().unwrap();
@@ -37,9 +38,9 @@ mod ast {
     pub enum Statement {
         Definition {
             symbol: Symbol,
-            expression: Expression,
+            expression: Rc<Expression>,
         },
-        Expression(Expression),
+        Expression(Rc<Expression>),
     }
 
     impl Statement {
@@ -57,7 +58,7 @@ mod ast {
 
                 Statement::Definition {
                     symbol: String::from(symbol),
-                    expression: expression_inners,
+                    expression: expression_vec_to_tuple(&expression_inners),
                 }
             }
 
@@ -68,19 +69,19 @@ mod ast {
                         .into_inner()
                         .map(ExpressionInner::from_pair)
                         .collect();
-                    Statement::Expression(expression_inners)
+                    Statement::Expression(expression_vec_to_tuple(&expression_inners))
                 }
                 rule => panic!("[ast] can't make a statement from {:#?}", rule),
             }
         }
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub enum ExpressionInner {
         Symbol(Symbol),
         IntegerLiteral(IntegerLiteral),
         StringLiteral(StringLiteral),
-        Expression(Expression),
+        Expression(Rc<Expression>),
     }
 
     impl ExpressionInner {
@@ -101,14 +102,26 @@ mod ast {
                 Rule::expression => {
                     let expression_inners: Vec<ExpressionInner> =
                         pair.into_inner().map(ExpressionInner::from_pair).collect();
-                    ExpressionInner::Expression(expression_inners)
+                    ExpressionInner::Expression(expression_vec_to_tuple(&expression_inners))
                 }
                 rule => panic!("[ast] can't make an expression element from {:#?}", rule),
             }
         }
     }
 
-    pub type Expression = Vec<ExpressionInner>;
+    #[derive(Debug)]
+    pub enum Expression {
+        Unary(ExpressionInner),
+        Binary(ExpressionInner, ExpressionInner),
+    }
+
+    fn expression_vec_to_tuple(v: &Vec<ExpressionInner>) -> Rc<Expression> {
+        match v.len() {
+            1 => Rc::new(Expression::Unary(v[0].clone())),
+            2 => Rc::new(Expression::Binary(v[0].clone(), v[1].clone())),
+            _ => todo!("[ast] expr tree generation"),
+        }
+    }
 
     pub type IntegerLiteral = i64;
     fn integer_from_pair(pair: pest::iterators::Pair<Rule>) -> i64 {
@@ -178,21 +191,11 @@ mod runtime {
         symbol_table: &HashMap<String, Rc<Value>>,
         expression: &ast::Expression,
     ) -> Rc<Value> {
-        // println!("[runtime] evaluating expression");
-        let head = &expression[0];
-        let tail = &expression[1..];
-        let arity = tail.len();
-        match head {
-            ast::ExpressionInner::IntegerLiteral(value) => match arity {
-                0 => Rc::new(Value::Integer(*value)),
-                _ => panic!("[runtime] cannot apply integer: {}", value),
-            },
-            ast::ExpressionInner::StringLiteral(value) => match arity {
-                0 => Rc::new(Value::String(value.clone())),
-                _ => panic!("[runtime] cannot apply string: {}", value),
-            },
-            ast::ExpressionInner::Symbol(value) => match arity {
-                0 => {
+        match expression {
+            ast::Expression::Unary(inner) => match inner {
+                ast::ExpressionInner::IntegerLiteral(value) => Rc::new(Value::Integer(*value)),
+                ast::ExpressionInner::StringLiteral(value) => Rc::new(Value::String(value.clone())),
+                ast::ExpressionInner::Symbol(value) => {
                     let builtin_value = try_evaluate_builtin(value);
                     if builtin_value.is_some() {
                         return Rc::new(builtin_value.unwrap());
@@ -204,19 +207,55 @@ mod runtime {
                         return lookup_rc.clone();
                     }
 
-                    Rc::new(Value::String(String::from("dummy value")))
+                    panic!("[runtime] symbol not defined: {:#?}", value);
                 }
-                1 => {
-                    // let arg = &tail[0];
-                    // let applied = try_apply_function(value, arg, None);
-                    panic!("should apply function here!")
+                ast::ExpressionInner::Expression(value_rc) => {
+                    let sub_expr = &**value_rc;
+                    evaluate_expr(symbol_table, sub_expr)
                 }
-                _ => unreachable!(
-                    "[runtime] expression arity >= 2! there must be an error in AST generation"
-                ),
             },
-            ast::ExpressionInner::Expression(expression) => evaluate_expr(symbol_table, expression),
+            ast::Expression::Binary(inner1, inner2) => todo!("[runtime] binary expressions"),
         }
+
+        // println!("[runtime] evaluating expression");
+        // let head = &expression[0];
+        // let tail = &expression[1..];
+        // let arity = tail.len();
+        // match head {
+        //     ast::ExpressionInner::IntegerLiteral(value) => match arity {
+        //         0 => Rc::new(Value::Integer(*value)),
+        //         _ => panic!("[runtime] cannot apply integer: {}", value),
+        //     },
+        //     ast::ExpressionInner::StringLiteral(value) => match arity {
+        //         0 => Rc::new(Value::String(value.clone())),
+        //         _ => panic!("[runtime] cannot apply string: {}", value),
+        //     },
+        //     ast::ExpressionInner::Symbol(value) => match arity {
+        //         0 => {
+        //             let builtin_value = try_evaluate_builtin(value);
+        //             if builtin_value.is_some() {
+        //                 return Rc::new(builtin_value.unwrap());
+        //             }
+
+        //             let table_lookup_value = symbol_table.get(value);
+        //             if table_lookup_value.is_some() {
+        //                 let lookup_rc = table_lookup_value.unwrap();
+        //                 return lookup_rc.clone();
+        //             }
+
+        //             Rc::new(Value::String(String::from("dummy value")))
+        //         }
+        //         1 => {
+        //             // let arg = &tail[0];
+        //             // let applied = try_apply_function(value, arg, None);
+        //             panic!("should apply function here!")
+        //         }
+        //         _ => unreachable!(
+        //             "[runtime] expression arity >= 2! there must be an error in AST generation"
+        //         ),
+        //     },
+        //     ast::ExpressionInner::Expression(expression) => evaluate_expr(symbol_table, expression),
+        // }
     }
 
     pub fn evaluate(program: &ast::Program) {
