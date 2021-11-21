@@ -186,10 +186,6 @@ mod runtime {
     }
 
     fn try_apply_function(func_rc: Rc<Value>, arg: Rc<Value>, bound_v: Option<usize>) -> Rc<Value> {
-        // println!(
-        //     "[runtime] evaluating\nfunc: {:#?}\narg:{:#?}\nbound_v: {:#?}",
-        //     func_rc, arg, bound_v
-        // );
         let func = &*func_rc;
 
         match func {
@@ -213,8 +209,6 @@ mod runtime {
             }
             _ => func_rc,
         }
-
-        // println!("[runtime] returning from eval: {:#?}\n", ret);
     }
 
     fn evaluate_expr_inner_unary(
@@ -289,46 +283,6 @@ mod runtime {
                 evaluate_expr_inner_binary(symbol_table, inner1, inner2)
             }
         }
-
-        // println!("[runtime] evaluating expression");
-        // let head = &expression[0];
-        // let tail = &expression[1..];
-        // let arity = tail.len();
-        // match head {
-        //     ast::ExpressionInner::IntegerLiteral(value) => match arity {
-        //         0 => Rc::new(Value::Integer(*value)),
-        //         _ => panic!("[runtime] cannot apply integer: {}", value),
-        //     },
-        //     ast::ExpressionInner::StringLiteral(value) => match arity {
-        //         0 => Rc::new(Value::String(value.clone())),
-        //         _ => panic!("[runtime] cannot apply string: {}", value),
-        //     },
-        //     ast::ExpressionInner::Symbol(value) => match arity {
-        //         0 => {
-        //             let builtin_value = try_evaluate_builtin(value);
-        //             if builtin_value.is_some() {
-        //                 return Rc::new(builtin_value.unwrap());
-        //             }
-
-        //             let table_lookup_value = symbol_table.get(value);
-        //             if table_lookup_value.is_some() {
-        //                 let lookup_rc = table_lookup_value.unwrap();
-        //                 return lookup_rc.clone();
-        //             }
-
-        //             Rc::new(Value::String(String::from("dummy value")))
-        //         }
-        //         1 => {
-        //             // let arg = &tail[0];
-        //             // let applied = try_apply_function(value, arg, None);
-        //             panic!("should apply function here!")
-        //         }
-        //         _ => unreachable!(
-        //             "[runtime] expression arity >= 2! there must be an error in AST generation"
-        //         ),
-        //     },
-        //     ast::ExpressionInner::Expression(expression) => evaluate_expr(symbol_table, expression),
-        // }
     }
 
     pub fn evaluate(program: &ast::Program) {
@@ -376,7 +330,7 @@ fn main() {
 
     // println!("parse tree = {:#?}", parse_tree);
     let syntax_tree: Program = ast::from_parse_tree(&mut parse_tree);
-    println!("syntax tree = {:#?}", syntax_tree);
+    // println!("syntax tree = {:#?}", syntax_tree);
 
     runtime::evaluate(&syntax_tree);
 }
