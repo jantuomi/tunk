@@ -25,6 +25,7 @@ pub type Program = Vec<Statement>;
 pub enum Statement {
     Definition {
         symbol: Symbol,
+        parameters: Vec<Symbol>,
         expression: Rc<Expression>,
     },
     Expression(Rc<Expression>),
@@ -37,15 +38,31 @@ impl Statement {
         fn definition_from_pair(pair: pest::iterators::Pair<Rule>) -> Statement {
             let mut inner = pair.into_inner();
             let symbol = inner.next().unwrap().as_span().as_str();
-            let expression = inner.next().unwrap();
-            let expression_inners: Vec<ExpressionInner> = expression
-                .into_inner()
-                .map(ExpressionInner::from_pair)
-                .collect();
+            let mut parameters: Vec<Symbol> = vec![];
+            let mut expression_opt: Option<Rc<Expression>> = None;
+
+            while let Some(p) = inner.next() {
+                match p.as_rule() {
+                    Rule::symbol => parameters.push(String::from(p.as_span().as_str())),
+                    Rule::expression => {
+                        let expression_inners: Vec<ExpressionInner> =
+                            p.into_inner().map(ExpressionInner::from_pair).collect();
+                        expression_opt = Some(expression_vec_to_tuple(&expression_inners));
+                    }
+                    _ => panic!(
+                        "[ast] illegal rule {:#?} as child of definition",
+                        p.as_rule()
+                    ),
+                }
+            }
+
+            let expression =
+                expression_opt.expect("[ast] no expression found as child of definition");
 
             Statement::Definition {
                 symbol: String::from(symbol),
-                expression: expression_vec_to_tuple(&expression_inners),
+                parameters: parameters,
+                expression: expression,
             }
         }
 

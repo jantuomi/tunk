@@ -4,6 +4,7 @@ extern crate pest_derive;
 extern crate pest;
 
 mod ast;
+mod builtins;
 mod lparser;
 mod runtime;
 

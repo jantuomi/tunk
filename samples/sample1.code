@@ -3,6 +3,3 @@
 #     int.multiply n (factorial (int.decrement n));
 
 # factorial 10;
-
-my-id n = n;
-my-id 1;

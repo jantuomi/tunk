@@ -1,20 +1,10 @@
 use super::ast;
+use super::builtins;
+use super::builtins::BuiltinFunction;
 use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-
-#[derive(Debug, Clone)]
-pub enum BuiltinFunction {
-    IntegerIncrement,
-    IntegerDecrement,
-    IntegerAdd,
-    IntegerAdd1(i64),
-    IntegerMultiply,
-    IntegerMultiply1(i64),
-    IntegerEq,
-    IntegerEq1(i64),
-}
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -40,11 +30,6 @@ impl fmt::Display for Value {
 }
 
 static VAR_ID_INC: AtomicUsize = AtomicUsize::new(0);
-const B_INTEGER_INCREMENT: &str = "int.increment";
-const B_INTEGER_DECREMENT: &str = "int.decrement";
-const B_INTEGER_ADD: &str = "int.add";
-const B_INTEGER_MULTIPLY: &str = "int.multiply";
-const B_INTEGER_EQ: &str = "int.eq?";
 
 fn advance_v() -> usize {
     let v = VAR_ID_INC.load(Ordering::Relaxed);
@@ -52,33 +37,21 @@ fn advance_v() -> usize {
     v
 }
 
-fn make_boolean_true_function() -> Value {
+pub fn make_boolean_true_function() -> Value {
     let x = advance_v();
     let y = advance_v();
     Value::Function(x, Rc::new(Value::Function(y, Rc::new(Value::Var(x)))))
 }
 
-fn make_boolean_false_function() -> Value {
+pub fn make_boolean_false_function() -> Value {
     let x = advance_v();
     let y = advance_v();
     Value::Function(x, Rc::new(Value::Function(y, Rc::new(Value::Var(y)))))
 }
 
-fn try_builtin_symbol_to_value(symbol: &ast::Symbol) -> Option<Value> {
-    match symbol.as_str() {
-        "true" => Some(make_boolean_true_function()),
-        "false" => Some(make_boolean_false_function()),
-        "id" => {
-            let v = advance_v();
-            Some(Value::Function(v, Rc::new(Value::Var(v))))
-        }
-        B_INTEGER_INCREMENT => Some(Value::BuiltinFunction(BuiltinFunction::IntegerIncrement)),
-        B_INTEGER_DECREMENT => Some(Value::BuiltinFunction(BuiltinFunction::IntegerDecrement)),
-        B_INTEGER_ADD => Some(Value::BuiltinFunction(BuiltinFunction::IntegerAdd)),
-        B_INTEGER_MULTIPLY => Some(Value::BuiltinFunction(BuiltinFunction::IntegerMultiply)),
-        B_INTEGER_EQ => Some(Value::BuiltinFunction(BuiltinFunction::IntegerEq)),
-        _ => None,
-    }
+pub fn make_identity_function() -> Value {
+    let v = advance_v();
+    Value::Function(v, Rc::new(Value::Var(v)))
 }
 
 fn try_apply_function(func_rc: Rc<Value>, arg_rc: Rc<Value>, bound_v: Option<usize>) -> Rc<Value> {
@@ -103,74 +76,7 @@ fn try_apply_function(func_rc: Rc<Value>, arg_rc: Rc<Value>, bound_v: Option<usi
                 _ => Rc::clone(body_rc),
             }
         }
-        Value::BuiltinFunction(builtin) => match builtin {
-            BuiltinFunction::IntegerIncrement => match arg {
-                Value::Integer(value) => Rc::new(Value::Integer(value + 1)),
-                _ => panic!(
-                    "[runtime] tried to apply non-integer value to {}",
-                    B_INTEGER_INCREMENT
-                ),
-            },
-            BuiltinFunction::IntegerDecrement => match arg {
-                Value::Integer(value) => Rc::new(Value::Integer(value - 1)),
-                _ => panic!(
-                    "[runtime] tried to apply non-integer value to {}",
-                    B_INTEGER_DECREMENT
-                ),
-            },
-            BuiltinFunction::IntegerAdd => match arg {
-                Value::Integer(value) => {
-                    Rc::new(Value::BuiltinFunction(BuiltinFunction::IntegerAdd1(*value)))
-                }
-                _ => panic!(
-                    "[runtime] tried to apply non-integer value to {}",
-                    B_INTEGER_ADD
-                ),
-            },
-            BuiltinFunction::IntegerAdd1(other) => match arg {
-                Value::Integer(value) => Rc::new(Value::Integer(other + value)),
-                _ => panic!(
-                    "[runtime] tried to apply non-integer value to {}",
-                    B_INTEGER_ADD
-                ),
-            },
-            BuiltinFunction::IntegerMultiply => match arg {
-                Value::Integer(value) => Rc::new(Value::BuiltinFunction(
-                    BuiltinFunction::IntegerMultiply1(*value),
-                )),
-                _ => panic!(
-                    "[runtime] tried to apply non-integer value to {}",
-                    B_INTEGER_MULTIPLY
-                ),
-            },
-            BuiltinFunction::IntegerMultiply1(other) => match arg {
-                Value::Integer(value) => Rc::new(Value::Integer(other * value)),
-                _ => panic!(
-                    "[runtime] tried to apply non-integer value to {}",
-                    B_INTEGER_MULTIPLY
-                ),
-            },
-            BuiltinFunction::IntegerEq => match arg {
-                Value::Integer(value) => {
-                    Rc::new(Value::BuiltinFunction(BuiltinFunction::IntegerEq1(*value)))
-                }
-                _ => panic!(
-                    "[runtime] tried to apply non-integer value to {}",
-                    B_INTEGER_EQ
-                ),
-            },
-            BuiltinFunction::IntegerEq1(other) => match arg {
-                Value::Integer(value) => Rc::new(if other == value {
-                    make_boolean_true_function()
-                } else {
-                    make_boolean_false_function()
-                }),
-                _ => panic!(
-                    "[runtime] tried to apply non-integer value to {}",
-                    B_INTEGER_EQ
-                ),
-            },
-        },
+        Value::BuiltinFunction(builtin) => builtins::apply_builtin(builtin, arg),
         _ => func_rc,
     }
 }
@@ -183,7 +89,7 @@ fn evaluate_expr_inner_unary(
         ast::ExpressionInner::IntegerLiteral(value) => Rc::new(Value::Integer(*value)),
         ast::ExpressionInner::StringLiteral(value) => Rc::new(Value::String(value.clone())),
         ast::ExpressionInner::Symbol(value) => {
-            let builtin_value = try_builtin_symbol_to_value(value);
+            let builtin_value = builtins::try_builtin_symbol_to_value(value);
             if builtin_value.is_some() {
                 return Rc::new(builtin_value.unwrap());
             }
@@ -219,7 +125,7 @@ fn evaluate_expr_inner_binary(
         ast::ExpressionInner::Symbol(value) => {
             let lhs_value_rc: Rc<Value>;
 
-            if let Some(builtin) = try_builtin_symbol_to_value(value) {
+            if let Some(builtin) = builtins::try_builtin_symbol_to_value(value) {
                 lhs_value_rc = Rc::new(builtin);
             } else if let Some(lookup) = symbol_table.get(value) {
                 lhs_value_rc = Rc::clone(lookup);
@@ -254,7 +160,11 @@ pub fn evaluate(program: &ast::Program) {
 
     for statement in program {
         match statement {
-            ast::Statement::Definition { symbol, expression } => {
+            ast::Statement::Definition {
+                symbol,
+                parameters,
+                expression,
+            } => {
                 println!("[runtime] defining symbol: {:#?}", symbol);
                 let value = evaluate_expr(&symbol_table, expression);
                 symbol_table.insert(symbol.clone(), value);
