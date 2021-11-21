@@ -1,3 +1,6 @@
-(true
-    (id 10))
-    ((id id) 20);
+false
+    (id 10)
+    ((id id) (id 20));
+
+true "true" "false";
+id;

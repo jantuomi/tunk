@@ -86,8 +86,6 @@ mod ast {
 
     impl ExpressionInner {
         fn from_pair(pair: pest::iterators::Pair<Rule>) -> ExpressionInner {
-            // println!("ExpressionInner::from_pair pair: {:#?}", pair);
-
             match pair.as_rule() {
                 Rule::symbol => ExpressionInner::Symbol(string_from_pair(pair)),
                 Rule::integer_literal => ExpressionInner::IntegerLiteral(integer_from_pair(pair)),
@@ -119,7 +117,19 @@ mod ast {
         match v.len() {
             1 => Rc::new(Expression::Unary(v[0].clone())),
             2 => Rc::new(Expression::Binary(v[0].clone(), v[1].clone())),
-            _ => todo!("[ast] expr tree generation"),
+            _ => {
+                let combined = ExpressionInner::Expression(Rc::new(Expression::Binary(
+                    v[0].clone(),
+                    v[1].clone(),
+                )));
+
+                let mut new_v = vec![combined];
+                for e in &v[2..] {
+                    new_v.push(e.clone());
+                }
+
+                expression_vec_to_tuple(&new_v)
+            }
         }
     }
 
@@ -140,6 +150,7 @@ mod ast {
 mod runtime {
     use super::ast;
     use std::collections::HashMap;
+    use std::fmt;
     use std::rc::Rc;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -151,6 +162,19 @@ mod runtime {
         Function(usize, Rc<Value>),
     }
 
+    impl fmt::Display for Value {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Value::Integer(value) => write!(f, "{} :: Integer", value),
+                Value::String(value) => write!(f, "{} :: String", value),
+                Value::Var(v) => write!(f, "{} :: Unbound variable", v),
+                Value::Function(_, _) => {
+                    write!(f, "Function :: Function")
+                }
+            }
+        }
+    }
+
     static VAR_ID_INC: AtomicUsize = AtomicUsize::new(0);
 
     fn advance_v() -> usize {
@@ -159,7 +183,7 @@ mod runtime {
         v
     }
 
-    fn try_evaluate_builtin(symbol: &ast::Symbol) -> Option<Value> {
+    fn try_builtin_symbol_to_value(symbol: &ast::Symbol) -> Option<Value> {
         match symbol.as_str() {
             "true" => {
                 let x = advance_v();
@@ -219,7 +243,7 @@ mod runtime {
             ast::ExpressionInner::IntegerLiteral(value) => Rc::new(Value::Integer(*value)),
             ast::ExpressionInner::StringLiteral(value) => Rc::new(Value::String(value.clone())),
             ast::ExpressionInner::Symbol(value) => {
-                let builtin_value = try_evaluate_builtin(value);
+                let builtin_value = try_builtin_symbol_to_value(value);
                 if builtin_value.is_some() {
                     return Rc::new(builtin_value.unwrap());
                 }
@@ -255,7 +279,7 @@ mod runtime {
             ast::ExpressionInner::Symbol(value) => {
                 let lhs_value_rc: Rc<Value>;
 
-                if let Some(builtin) = try_evaluate_builtin(value) {
+                if let Some(builtin) = try_builtin_symbol_to_value(value) {
                     lhs_value_rc = Rc::new(builtin);
                 } else if let Some(lookup) = symbol_table.get(value) {
                     lhs_value_rc = Rc::clone(lookup);
@@ -298,7 +322,7 @@ mod runtime {
                 ast::Statement::Expression(expression) => {
                     println!("[runtime] evaluating free-standing expression");
                     let value = evaluate_expr(&symbol_table, expression);
-                    println!("Result: {:#?}", value);
+                    println!("Result: {}", value);
                 }
             }
         }
