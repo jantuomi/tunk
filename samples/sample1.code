@@ -1,2 +1,5 @@
-int.add10 = int.add 10;
-int.add10 20;
+factorial = int.eq? n 1
+    1
+    int.multiply n (factorial (int.decrement n));
+
+factorial 10;

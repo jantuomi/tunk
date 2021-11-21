@@ -157,8 +157,13 @@ mod runtime {
     #[derive(Debug, Clone)]
     pub enum BuiltinFunction {
         IntegerIncrement,
+        IntegerDecrement,
         IntegerAdd,
         IntegerAdd1(i64),
+        IntegerMultiply,
+        IntegerMultiply1(i64),
+        IntegerEq,
+        IntegerEq1(i64),
     }
 
     #[derive(Debug, Clone)]
@@ -186,7 +191,10 @@ mod runtime {
 
     static VAR_ID_INC: AtomicUsize = AtomicUsize::new(0);
     const B_INTEGER_INCREMENT: &str = "int.increment";
+    const B_INTEGER_DECREMENT: &str = "int.decrement";
     const B_INTEGER_ADD: &str = "int.add";
+    const B_INTEGER_MULTIPLY: &str = "int.multiply";
+    const B_INTEGER_EQ: &str = "int.eq?";
 
     fn advance_v() -> usize {
         let v = VAR_ID_INC.load(Ordering::Relaxed);
@@ -194,30 +202,30 @@ mod runtime {
         v
     }
 
+    fn make_boolean_true_function() -> Value {
+        let x = advance_v();
+        let y = advance_v();
+        Value::Function(x, Rc::new(Value::Function(y, Rc::new(Value::Var(x)))))
+    }
+
+    fn make_boolean_false_function() -> Value {
+        let x = advance_v();
+        let y = advance_v();
+        Value::Function(x, Rc::new(Value::Function(y, Rc::new(Value::Var(y)))))
+    }
+
     fn try_builtin_symbol_to_value(symbol: &ast::Symbol) -> Option<Value> {
         match symbol.as_str() {
-            "true" => {
-                let x = advance_v();
-                let y = advance_v();
-                Some(Value::Function(
-                    x,
-                    Rc::new(Value::Function(y, Rc::new(Value::Var(x)))),
-                ))
-            }
-            "false" => {
-                let x = advance_v();
-                let y = advance_v();
-                Some(Value::Function(
-                    x,
-                    Rc::new(Value::Function(y, Rc::new(Value::Var(y)))),
-                ))
-            }
+            "true" => Some(make_boolean_true_function()),
+            "false" => Some(make_boolean_false_function()),
             "id" => {
                 let v = advance_v();
                 Some(Value::Function(v, Rc::new(Value::Var(v))))
             }
             B_INTEGER_INCREMENT => Some(Value::BuiltinFunction(BuiltinFunction::IntegerIncrement)),
+            B_INTEGER_DECREMENT => Some(Value::BuiltinFunction(BuiltinFunction::IntegerDecrement)),
             B_INTEGER_ADD => Some(Value::BuiltinFunction(BuiltinFunction::IntegerAdd)),
+            B_INTEGER_EQ => Some(Value::BuiltinFunction(BuiltinFunction::IntegerEq)),
             _ => None,
         }
     }
@@ -256,6 +264,13 @@ mod runtime {
                         B_INTEGER_INCREMENT
                     ),
                 },
+                BuiltinFunction::IntegerDecrement => match arg {
+                    Value::Integer(value) => Rc::new(Value::Integer(value - 1)),
+                    _ => panic!(
+                        "[runtime] tried to apply non-integer value to {}",
+                        B_INTEGER_DECREMENT
+                    ),
+                },
                 BuiltinFunction::IntegerAdd => match arg {
                     Value::Integer(value) => {
                         Rc::new(Value::BuiltinFunction(BuiltinFunction::IntegerAdd1(*value)))
@@ -270,6 +285,42 @@ mod runtime {
                     _ => panic!(
                         "[runtime] tried to apply non-integer value to {}",
                         B_INTEGER_ADD
+                    ),
+                },
+                BuiltinFunction::IntegerMultiply => match arg {
+                    Value::Integer(value) => Rc::new(Value::BuiltinFunction(
+                        BuiltinFunction::IntegerMultiply1(*value),
+                    )),
+                    _ => panic!(
+                        "[runtime] tried to apply non-integer value to {}",
+                        B_INTEGER_MULTIPLY
+                    ),
+                },
+                BuiltinFunction::IntegerMultiply1(other) => match arg {
+                    Value::Integer(value) => Rc::new(Value::Integer(other * value)),
+                    _ => panic!(
+                        "[runtime] tried to apply non-integer value to {}",
+                        B_INTEGER_MULTIPLY
+                    ),
+                },
+                BuiltinFunction::IntegerEq => match arg {
+                    Value::Integer(value) => {
+                        Rc::new(Value::BuiltinFunction(BuiltinFunction::IntegerEq1(*value)))
+                    }
+                    _ => panic!(
+                        "[runtime] tried to apply non-integer value to {}",
+                        B_INTEGER_EQ
+                    ),
+                },
+                BuiltinFunction::IntegerEq1(other) => match arg {
+                    Value::Integer(value) => Rc::new(if other == value {
+                        make_boolean_true_function()
+                    } else {
+                        make_boolean_false_function()
+                    }),
+                    _ => panic!(
+                        "[runtime] tried to apply non-integer value to {}",
+                        B_INTEGER_EQ
                     ),
                 },
             },
