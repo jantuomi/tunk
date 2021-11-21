@@ -1,5 +1,8 @@
-factorial = int.eq? n 1
-    1
-    int.multiply n (factorial (int.decrement n));
+# factorial = int.eq? n 1
+#     1
+#     int.multiply n (factorial (int.decrement n));
 
-factorial 10;
+# factorial 10;
+
+my-id n = n;
+my-id 1;
