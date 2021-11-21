@@ -1,6 +1,2 @@
-false
-    (id 10)
-    ((id id) (id 20));
-
-true "true" "false";
-id;
+int.add10 = int.add 10;
+int.add10 20;

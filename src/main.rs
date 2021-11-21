@@ -155,11 +155,19 @@ mod runtime {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[derive(Debug, Clone)]
+    pub enum BuiltinFunction {
+        IntegerIncrement,
+        IntegerAdd,
+        IntegerAdd1(i64),
+    }
+
+    #[derive(Debug, Clone)]
     pub enum Value {
         Integer(i64),
         String(String),
         Var(usize),
         Function(usize, Rc<Value>),
+        BuiltinFunction(BuiltinFunction),
     }
 
     impl fmt::Display for Value {
@@ -171,11 +179,14 @@ mod runtime {
                 Value::Function(_, _) => {
                     write!(f, "Function :: Function")
                 }
+                Value::BuiltinFunction(_) => write!(f, "Built-in function :: Function"),
             }
         }
     }
 
     static VAR_ID_INC: AtomicUsize = AtomicUsize::new(0);
+    const B_INTEGER_INCREMENT: &str = "int.increment";
+    const B_INTEGER_ADD: &str = "int.add";
 
     fn advance_v() -> usize {
         let v = VAR_ID_INC.load(Ordering::Relaxed);
@@ -205,13 +216,19 @@ mod runtime {
                 let v = advance_v();
                 Some(Value::Function(v, Rc::new(Value::Var(v))))
             }
+            B_INTEGER_INCREMENT => Some(Value::BuiltinFunction(BuiltinFunction::IntegerIncrement)),
+            B_INTEGER_ADD => Some(Value::BuiltinFunction(BuiltinFunction::IntegerAdd)),
             _ => None,
         }
     }
 
-    fn try_apply_function(func_rc: Rc<Value>, arg: Rc<Value>, bound_v: Option<usize>) -> Rc<Value> {
+    fn try_apply_function(
+        func_rc: Rc<Value>,
+        arg_rc: Rc<Value>,
+        bound_v: Option<usize>,
+    ) -> Rc<Value> {
         let func = &*func_rc;
-
+        let arg = &*arg_rc;
         match func {
             Value::Function(func_v, body_rc) => {
                 let v1 = bound_v.unwrap_or(*func_v);
@@ -219,18 +236,43 @@ mod runtime {
                 match body {
                     Value::Var(v2) => {
                         if v1 == *v2 {
-                            arg
+                            arg_rc
                         } else {
                             Rc::clone(body_rc)
                         }
                     }
                     Value::Function(body_v, _) => {
-                        let new_body = try_apply_function(Rc::clone(body_rc), arg, Some(v1));
+                        let new_body = try_apply_function(Rc::clone(body_rc), arg_rc, Some(v1));
                         Rc::new(Value::Function(*body_v, new_body))
                     }
                     _ => Rc::clone(body_rc),
                 }
             }
+            Value::BuiltinFunction(builtin) => match builtin {
+                BuiltinFunction::IntegerIncrement => match arg {
+                    Value::Integer(value) => Rc::new(Value::Integer(value + 1)),
+                    _ => panic!(
+                        "[runtime] tried to apply non-integer value to {}",
+                        B_INTEGER_INCREMENT
+                    ),
+                },
+                BuiltinFunction::IntegerAdd => match arg {
+                    Value::Integer(value) => {
+                        Rc::new(Value::BuiltinFunction(BuiltinFunction::IntegerAdd1(*value)))
+                    }
+                    _ => panic!(
+                        "[runtime] tried to apply non-integer value to {}",
+                        B_INTEGER_ADD
+                    ),
+                },
+                BuiltinFunction::IntegerAdd1(other) => match arg {
+                    Value::Integer(value) => Rc::new(Value::Integer(other + value)),
+                    _ => panic!(
+                        "[runtime] tried to apply non-integer value to {}",
+                        B_INTEGER_ADD
+                    ),
+                },
+            },
             _ => func_rc,
         }
     }
