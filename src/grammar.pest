@@ -1,9 +1,9 @@
 COMMENT = _{ "#" ~ (!("#" | NEWLINE) ~ ANY)* ~ NEWLINE* }
 WHITESPACE = _{ " " | "\t" | NEWLINE }
 program = { SOI ~ statement+ ~ EOI }
-statement = { (definition | expression) }
-definition = { symbol ~ "=" ~ expression ~ ";"+ }
-expression = { (symbol | integer_literal | string_literal | ("(" ~ expression ~ ")"))+ ~ ";" }
+statement = { (definition | expression) ~ ";"+ }
+definition = { symbol ~ "=" ~ expression }
+expression = { (symbol | integer_literal | string_literal | ("(" ~ expression ~ ")"))+ }
 integer_literal = @{ "-"? ~ ASCII_DIGIT+ }
 string_literal = { QUOTATION_MARK ~ (!QUOTATION_MARK ~ ANY)* ~ QUOTATION_MARK }
 symbol = @{ (ASCII_ALPHA | "_.") ~ (ASCII_ALPHANUMERIC | "-" | "." | "?" | "!")* }

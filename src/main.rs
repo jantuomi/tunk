@@ -166,6 +166,10 @@ mod runtime {
     }
 
     fn try_apply_function(func_rc: Rc<Value>, arg: Rc<Value>, bound_v: Option<usize>) -> Rc<Value> {
+        // println!(
+        //     "[runtime] evaluating func {:#?}, arg {:#?}, bound_v: {:#?}",
+        //     func_rc, arg, bound_v
+        // );
         let func = &*func_rc;
         match func {
             Value::Function(func_v, body_rc) => {
@@ -187,57 +191,77 @@ mod runtime {
         }
     }
 
+    fn evaluate_expr_inner_unary(
+        symbol_table: &HashMap<String, Rc<Value>>,
+        inner: &ast::ExpressionInner,
+    ) -> Rc<Value> {
+        match inner {
+            ast::ExpressionInner::IntegerLiteral(value) => Rc::new(Value::Integer(*value)),
+            ast::ExpressionInner::StringLiteral(value) => Rc::new(Value::String(value.clone())),
+            ast::ExpressionInner::Symbol(value) => {
+                let builtin_value = try_evaluate_builtin(value);
+                if builtin_value.is_some() {
+                    return Rc::new(builtin_value.unwrap());
+                }
+
+                let table_lookup_value = symbol_table.get(value);
+                if table_lookup_value.is_some() {
+                    let lookup_rc = table_lookup_value.unwrap();
+                    return lookup_rc.clone();
+                }
+
+                panic!("[runtime] symbol not defined: {:#?}", value);
+            }
+            ast::ExpressionInner::Expression(value_rc) => {
+                let sub_expr = &**value_rc;
+                evaluate_expr(symbol_table, sub_expr)
+            }
+        }
+    }
+
+    fn evaluate_expr_inner_binary(
+        symbol_table: &HashMap<String, Rc<Value>>,
+        lhs: &ast::ExpressionInner,
+        rhs: &ast::ExpressionInner,
+    ) -> Rc<Value> {
+        match lhs {
+            ast::ExpressionInner::Expression(value_rc) => {
+                let sub_expr = &**value_rc;
+
+                let evaled_lhs = evaluate_expr(symbol_table, sub_expr);
+                let evaled_rhs = evaluate_expr_inner_unary(symbol_table, rhs);
+                try_apply_function(evaled_lhs, evaled_rhs, None)
+            }
+            ast::ExpressionInner::Symbol(value) => {
+                let lhs_value_rc: Rc<Value>;
+
+                if let Some(builtin) = try_evaluate_builtin(value) {
+                    lhs_value_rc = Rc::new(builtin);
+                } else if let Some(lookup) = symbol_table.get(value) {
+                    lhs_value_rc = (*lookup).clone();
+                } else {
+                    panic!("[runtime] symbol not defined: {:#?}", value);
+                }
+
+                let evaled_rhs = evaluate_expr_inner_unary(symbol_table, rhs);
+                try_apply_function(lhs_value_rc, evaled_rhs, None)
+            }
+            other => unreachable!(
+                "[runtime] this should not be on the left side of a binary expression: {:#?}",
+                other
+            ),
+        }
+    }
+
     fn evaluate_expr(
         symbol_table: &HashMap<String, Rc<Value>>,
         expression: &ast::Expression,
     ) -> Rc<Value> {
         match expression {
-            ast::Expression::Unary(inner) => match inner {
-                ast::ExpressionInner::IntegerLiteral(value) => Rc::new(Value::Integer(*value)),
-                ast::ExpressionInner::StringLiteral(value) => Rc::new(Value::String(value.clone())),
-                ast::ExpressionInner::Symbol(value) => {
-                    let builtin_value = try_evaluate_builtin(value);
-                    if builtin_value.is_some() {
-                        return Rc::new(builtin_value.unwrap());
-                    }
-
-                    let table_lookup_value = symbol_table.get(value);
-                    if table_lookup_value.is_some() {
-                        let lookup_rc = table_lookup_value.unwrap();
-                        return lookup_rc.clone();
-                    }
-
-                    panic!("[runtime] symbol not defined: {:#?}", value);
-                }
-                ast::ExpressionInner::Expression(value_rc) => {
-                    let sub_expr = &**value_rc;
-                    evaluate_expr(symbol_table, sub_expr)
-                }
-            },
-            ast::Expression::Binary(inner1, inner2) => match inner1 {
-                ast::ExpressionInner::Expression(value_rc) => {
-                    let sub_expr = &**value_rc;
-                    evaluate_expr(symbol_table, sub_expr)
-                }
-                ast::ExpressionInner::Symbol(value) => {
-                    let mut lhs_value_rc: Rc<Value>;
-
-                    if let Some(builtin) = try_evaluate_builtin(value) {
-                        lhs_value_rc = Rc::new(builtin);
-                    } else if let Some(lookup) = symbol_table.get(value) {
-                        lhs_value_rc = *lookup;
-                    } else {
-                        panic!("[runtime] symbol not defined: {:#?}", value);
-                    }
-
-                    let evaled_arg = evaluate_expr_inner(inner2);
-                    try_apply_function(lhs_value_rc, evaled_arg, None)
-                }
-                other => unreachable!(
-                    "[runtime] this should not be on the left side of a binary expression: {:#?}",
-                    other
-                ),
-            },
+            ast::Expression::Unary(inner) => evaluate_expr_inner_unary(symbol_table, inner),
+            ast::Expression::Binary(inner1, inner2) => {
+                evaluate_expr_inner_binary(symbol_table, inner1, inner2)
+            }
         }
 
         // println!("[runtime] evaluating expression");
