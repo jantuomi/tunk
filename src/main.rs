@@ -153,12 +153,32 @@ mod runtime {
 
     static VAR_ID_INC: AtomicUsize = AtomicUsize::new(0);
 
+    fn advance_v() -> usize {
+        let v = VAR_ID_INC.load(Ordering::Relaxed);
+        VAR_ID_INC.store(v + 1, Ordering::Relaxed);
+        v
+    }
+
     fn try_evaluate_builtin(symbol: &ast::Symbol) -> Option<Value> {
         match symbol.as_str() {
-            "int.zero" => Some(Value::Integer(0)),
+            "true" => {
+                let x = advance_v();
+                let y = advance_v();
+                Some(Value::Function(
+                    x,
+                    Rc::new(Value::Function(y, Rc::new(Value::Var(x)))),
+                ))
+            }
+            "false" => {
+                let x = advance_v();
+                let y = advance_v();
+                Some(Value::Function(
+                    x,
+                    Rc::new(Value::Function(y, Rc::new(Value::Var(y)))),
+                ))
+            }
             "id" => {
-                let v = VAR_ID_INC.load(Ordering::Relaxed);
-                VAR_ID_INC.store(v + 1, Ordering::Relaxed);
+                let v = advance_v();
                 Some(Value::Function(v, Rc::new(Value::Var(v))))
             }
             _ => None,
@@ -167,10 +187,11 @@ mod runtime {
 
     fn try_apply_function(func_rc: Rc<Value>, arg: Rc<Value>, bound_v: Option<usize>) -> Rc<Value> {
         // println!(
-        //     "[runtime] evaluating func {:#?}, arg {:#?}, bound_v: {:#?}",
+        //     "[runtime] evaluating\nfunc: {:#?}\narg:{:#?}\nbound_v: {:#?}",
         //     func_rc, arg, bound_v
         // );
         let func = &*func_rc;
+
         match func {
             Value::Function(func_v, body_rc) => {
                 let v1 = bound_v.unwrap_or(*func_v);
@@ -180,15 +201,20 @@ mod runtime {
                         if v1 == *v2 {
                             arg
                         } else {
-                            (*body_rc).clone()
+                            Rc::clone(body_rc)
                         }
                     }
-                    Value::Function(_, _) => try_apply_function((*body_rc).clone(), arg, Some(v1)),
-                    _ => (*body_rc).clone(),
+                    Value::Function(body_v, _) => {
+                        let new_body = try_apply_function(Rc::clone(body_rc), arg, Some(v1));
+                        Rc::new(Value::Function(*body_v, new_body))
+                    }
+                    _ => Rc::clone(body_rc),
                 }
             }
             _ => func_rc,
         }
+
+        // println!("[runtime] returning from eval: {:#?}\n", ret);
     }
 
     fn evaluate_expr_inner_unary(
@@ -207,7 +233,7 @@ mod runtime {
                 let table_lookup_value = symbol_table.get(value);
                 if table_lookup_value.is_some() {
                     let lookup_rc = table_lookup_value.unwrap();
-                    return lookup_rc.clone();
+                    return Rc::clone(lookup_rc);
                 }
 
                 panic!("[runtime] symbol not defined: {:#?}", value);
@@ -238,7 +264,7 @@ mod runtime {
                 if let Some(builtin) = try_evaluate_builtin(value) {
                     lhs_value_rc = Rc::new(builtin);
                 } else if let Some(lookup) = symbol_table.get(value) {
-                    lhs_value_rc = (*lookup).clone();
+                    lhs_value_rc = Rc::clone(lookup);
                 } else {
                     panic!("[runtime] symbol not defined: {:#?}", value);
                 }
@@ -348,7 +374,7 @@ fn main() {
 
     let mut parse_tree = parse_tree_result.unwrap();
 
-    println!("parse tree = {:#?}", parse_tree);
+    // println!("parse tree = {:#?}", parse_tree);
     let syntax_tree: Program = ast::from_parse_tree(&mut parse_tree);
     println!("syntax tree = {:#?}", syntax_tree);
 
