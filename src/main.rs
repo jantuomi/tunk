@@ -30,5 +30,5 @@ fn main() {
     let syntax_tree: Program = ast::from_parse_tree(&mut parse_tree);
     // println!("syntax tree = {:#?}", syntax_tree);
 
-    runtime::evaluate(&syntax_tree);
+    runtime::process(&syntax_tree);
 }
