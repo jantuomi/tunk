@@ -214,16 +214,17 @@ pub fn process(program: &ast::Program) {
                 let evaled_expr = process_expr(&symbol_table, expression, &bound_params);
                 let mut abstracted_expr: Rc<Term> = evaled_expr;
 
-                // bound_params.iter().rev().for_each(|(_, v)| {
-                //     abstracted_expr = Rc::new(Value::Function(*v, Rc::clone(&abstracted_expr)));
-                // });
+                bound_params.iter().rev().for_each(|(_, v)| {
+                    abstracted_expr = Rc::new(Term::Abstraction(*v, Rc::clone(&abstracted_expr)));
+                });
 
                 symbol_table.insert(symbol.clone(), abstracted_expr);
             }
             ast::Statement::Expression(expression) => {
                 println!("[runtime] evaluating free-standing expression");
                 let term = process_expr(&symbol_table, expression, &vec![]);
-                println!("Result:\n{}", term);
+                println!("Term:\n{}", term);
+                // let value = evaluate_term(&symbol_table, term);
             }
         }
     }
