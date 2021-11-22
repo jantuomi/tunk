@@ -1,0 +1,49 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'prog-lang-dev1'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=prog-lang-dev1",
+                    "--package=prog-lang-dev1"
+                ],
+                "filter": {
+                    "name": "prog-lang-dev1",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "samples/sample1.code"
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'prog-lang-dev1'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=prog-lang-dev1",
+                    "--package=prog-lang-dev1"
+                ],
+                "filter": {
+                    "name": "prog-lang-dev1",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "samples/sample1.code"
+            ],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
