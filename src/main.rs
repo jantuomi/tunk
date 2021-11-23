@@ -8,6 +8,9 @@ mod builtins;
 mod lparser;
 mod runtime;
 
+#[cfg(test)]
+mod test;
+
 fn main() {
     use ast::Program;
     use pest::Parser;
@@ -30,5 +33,9 @@ fn main() {
     let syntax_tree: Program = ast::from_parse_tree(&mut parse_tree);
     // println!("syntax tree = {:#?}", syntax_tree);
 
-    runtime::process(&syntax_tree);
+    let process_result = runtime::process(&syntax_tree, None);
+    if process_result.is_err() {
+        println!("{}", process_result.unwrap_err());
+        return;
+    }
 }
