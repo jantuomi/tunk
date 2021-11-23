@@ -21,7 +21,7 @@ pub fn make_identity_function() -> Term {
     Term::Abstraction(v, Rc::new(Term::Variable(v)))
 }
 
-pub fn try_builtin_symbol_to_value(symbol: &ast::Symbol) -> Option<Term> {
+pub fn try_builtin_symbol_to_term(symbol: &ast::Symbol) -> Option<Term> {
     match symbol.as_str() {
         "true" => Some(make_boolean_true_function()),
         "false" => Some(make_boolean_false_function()),

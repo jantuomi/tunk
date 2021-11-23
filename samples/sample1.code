@@ -4,6 +4,5 @@
 
 # factorial 10;
 
-fn a b = b;
-fn;
-true;
+f a b = b a;
+f 10 id;

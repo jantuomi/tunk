@@ -14,8 +14,8 @@ pub enum Value {
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Value::Integer(value) => write!(f, "{} :: Integer", value),
-            Value::String(value) => write!(f, "{} :: String", value),
+            Value::Integer(value) => write!(f, "Integer({})", value),
+            Value::String(value) => write!(f, "String({})", value),
         }
     }
 }
@@ -100,6 +100,128 @@ pub fn advance_v() -> usize {
 //     }
 // }
 
+fn bound_variable_opt_to_string(bound_variable_opt: &Option<(usize, Rc<Term>)>) -> String {
+    match bound_variable_opt {
+        Some((v, term_rc)) => format!("({}, {})", v, term_rc),
+        None => String::from("None"),
+    }
+}
+
+fn substitute_var(
+    term_rc: Rc<Term>,
+    bound_variable_opt: &Option<(usize, Rc<Term>)>,
+) -> ReductionResult {
+    let term = &*term_rc;
+    match term {
+        Term::Variable(v) => match bound_variable_opt {
+            Some((bound_v, bound_term_rc)) => {
+                if bound_v == v {
+                    Ok((Rc::clone(bound_term_rc), 1))
+                } else {
+                    Ok((term_rc, 0))
+                }
+            }
+            None => Ok((term_rc, 0)),
+        },
+        _ => Err(format!(
+            "[runtime] non-var term passed to substitute_var: {}",
+            term_rc
+        )),
+    }
+}
+
+type ReductionResult = Result<(Rc<Term>, usize), String>;
+
+fn reduce_term(
+    symbol_table: &HashMap<String, Rc<Term>>,
+    term_rc: Rc<Term>,
+    bound_variable_opt: &Option<(usize, Rc<Term>)>,
+    resolve_lazy: bool,
+) -> ReductionResult {
+    let term = &*term_rc;
+    println!(
+        "[debug] reduce_term with term_rc:\n{}\nbound_variable_opt:\n{}\n",
+        term_rc,
+        bound_variable_opt_to_string(bound_variable_opt)
+    );
+    let result = match term {
+        Term::Primitive(_) => Ok((term_rc, 0)),
+        Term::Variable(_) => substitute_var(term_rc, bound_variable_opt),
+        Term::Application(lhs_rc, rhs_rc) => {
+            let (subst_lhs_rc, lhs_n) = reduce_term(
+                symbol_table,
+                Rc::clone(lhs_rc),
+                bound_variable_opt,
+                resolve_lazy,
+            )?;
+            let (subst_rhs_rc, rhs_n) = reduce_term(
+                symbol_table,
+                Rc::clone(rhs_rc),
+                bound_variable_opt,
+                resolve_lazy,
+            )?;
+
+            let subst_n = lhs_n + rhs_n;
+
+            let (result, app_n) = match &*subst_lhs_rc {
+                Term::Abstraction(abs_v, abs_body_rc) => reduce_term(
+                    symbol_table,
+                    Rc::clone(abs_body_rc),
+                    &Some((*abs_v, subst_rhs_rc)),
+                    resolve_lazy,
+                ),
+                _ => Ok((
+                    Rc::new(Term::Application(subst_lhs_rc, subst_rhs_rc)),
+                    subst_n,
+                )),
+            }?;
+
+            Ok((result, app_n + subst_n))
+        }
+        Term::Abstraction(abs_v, body_rc) => {
+            let (subst_body, subst_n) = reduce_term(
+                symbol_table,
+                Rc::clone(body_rc),
+                bound_variable_opt,
+                resolve_lazy,
+            )?;
+            Ok((Rc::new(Term::Abstraction(*abs_v, subst_body)), subst_n))
+        }
+        // Term::Lazy(symbol) => {
+        //     if resolve_lazy {
+        //         let table_lookup_value = symbol_table.get(symbol);
+        //         if table_lookup_value.is_some() {
+        //             let lookup_rc = table_lookup_value.unwrap();
+        //             return reduce_term(
+        //                 symbol_table,
+        //                 lookup_rc.clone(),
+        //                 bound_variable_opt,
+        //                 resolve_lazy,
+        //             );
+        //         }
+
+        //         let builtin_value = builtins::try_builtin_symbol_to_term(symbol);
+        //         if builtin_value.is_some() {
+        //             let builtin_rc = Rc::new(builtin_value.unwrap());
+        //             return reduce_term(
+        //                 symbol_table,
+        //                 builtin_rc.clone(),
+        //                 bound_variable_opt,
+        //                 resolve_lazy,
+        //             );
+        //         }
+
+        //         panic!("[runtime] symbol {} not defined", symbol);
+        //     } else {
+        //         term_rc
+        //     }
+        // }
+        _ => todo!("reduce_term cases"),
+    };
+    // println!("[debug] returning {}\n", result);
+    result
+}
+
 fn process_expr_inner_unary(
     symbol_table: &HashMap<String, Rc<Term>>,
     inner: &ast::ExpressionInner,
@@ -126,7 +248,7 @@ fn process_expr_inner_unary(
                 return Rc::clone(lookup_rc);
             }
 
-            let builtin_value = builtins::try_builtin_symbol_to_value(value);
+            let builtin_value = builtins::try_builtin_symbol_to_term(value);
             if builtin_value.is_some() {
                 return Rc::new(builtin_value.unwrap());
             }
@@ -164,7 +286,7 @@ fn process_expr_inner_binary(
                 lhs_term = Rc::new(Term::Variable(bound_symbol.1));
             } else if let Some(lookup) = symbol_table.get(value) {
                 lhs_term = Rc::clone(lookup);
-            } else if let Some(builtin) = builtins::try_builtin_symbol_to_value(value) {
+            } else if let Some(builtin) = builtins::try_builtin_symbol_to_term(value) {
                 lhs_term = Rc::new(builtin);
             } else {
                 lhs_term = Rc::new(Term::Lazy(value.clone()));
@@ -198,7 +320,7 @@ fn process_expr(
 pub fn process(program: &ast::Program) {
     let mut symbol_table: HashMap<String, Rc<Term>> = HashMap::new();
 
-    for (index, statement) in program.iter().enumerate() {
+    for (_index, statement) in program.iter().enumerate() {
         match statement {
             ast::Statement::Definition {
                 symbol,
@@ -211,26 +333,44 @@ pub fn process(program: &ast::Program) {
                     .map(|param| (param.clone(), advance_v()))
                     .collect();
 
-                let evaled_expr = process_expr(&symbol_table, expression, &bound_params);
-                let mut abstracted_expr: Rc<Term> = evaled_expr;
+                let mut term = process_expr(&symbol_table, expression, &bound_params);
 
                 bound_params.iter().rev().for_each(|(_, v)| {
-                    abstracted_expr = Rc::new(Term::Abstraction(*v, Rc::clone(&abstracted_expr)));
+                    term = Rc::new(Term::Abstraction(*v, Rc::clone(&term)));
                 });
 
-                symbol_table.insert(symbol.clone(), abstracted_expr);
+                println!("Term:\n{}", term);
+                symbol_table.insert(symbol.clone(), term);
             }
             ast::Statement::Expression(expression) => {
                 println!("[runtime] evaluating free-standing expression");
-                let term = process_expr(&symbol_table, expression, &vec![]);
-                println!("Term:\n{}", term);
-                // let value = evaluate_term(&symbol_table, term);
+                let mut term: Rc<Term> = process_expr(&symbol_table, expression, &vec![]);
+                let mut reduction_result: ReductionResult;
+                loop {
+                    // println!("Term:\n{}", term);
+                    reduction_result = reduce_term(&symbol_table, term.clone(), &None, false);
+                    match reduction_result {
+                        Ok((result_term, substitution_n)) => {
+                            println!("Reduction OK:\n{},\nN: {}\n", result_term, substitution_n);
+                            if substitution_n > 0 {
+                                term = result_term;
+                            } else {
+                                break;
+                            }
+                        }
+                        Err(err_string) => {
+                            println!("Reduction ERR:\n{}\n", err_string)
+                        }
+                    }
+                }
+
+                println!("Reduction terminated, result:\n{}", term);
             }
         }
     }
 
-    println!(
-        "[runtime] evaluation done, symbol_table state dump: {:#?}",
-        symbol_table
-    );
+    // println!(
+    //     "[runtime] evaluation done, symbol_table state dump: {:#?}",
+    //     symbol_table
+    // );
 }
