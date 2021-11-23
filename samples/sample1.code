@@ -1,8 +1,2 @@
-# factorial = int.eq? n 1
-#     1
-#     int.multiply n (factorial (int.decrement n));
-
-# factorial 10;
-
-f a b = b a;
-f 10 id;
+int.increment 1;
+int.increment 10;

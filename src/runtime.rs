@@ -27,6 +27,7 @@ pub enum Term {
     Application(Rc<Term>, Rc<Term>),
     Primitive(Value),
     Lazy(String),
+    Builtin(String),
 }
 
 impl Term {
@@ -39,6 +40,7 @@ impl Term {
                 Value::Integer(int_val) => format!("{}Integer({})", indent_str, int_val),
                 Value::String(str_val) => format!("{}String({})", indent_str, str_val),
             },
+            Term::Builtin(symbol) => format!("{}Builtin({})", indent_str, symbol),
             Term::Abstraction(v, body) => format!(
                 "{}Abstraction({})\n{}",
                 indent_str,
@@ -135,6 +137,7 @@ pub fn reduce_term(
                     &Some((*abs_v, subst_rhs_rc)),
                     resolve_lazy,
                 ),
+                Term::Builtin(symbol) => builtins::evaluate_builtin(symbol, subst_rhs_rc),
                 _ => Ok((
                     Rc::new(Term::Application(subst_lhs_rc, subst_rhs_rc)),
                     subst_n,
@@ -152,6 +155,7 @@ pub fn reduce_term(
             )?;
             Ok((Rc::new(Term::Abstraction(*abs_v, subst_body)), subst_n))
         }
+        Term::Builtin(_) => Ok((term_rc, 0)),
         // Term::Lazy(symbol) => {
         //     if resolve_lazy {
         //         let table_lookup_value = symbol_table.get(symbol);
@@ -243,7 +247,7 @@ fn process_expr_inner_unary(
                 return Rc::clone(lookup_rc);
             }
 
-            let builtin_value = builtins::try_builtin_symbol_to_term(value);
+            let builtin_value = builtins::try_ast_symbol_to_builtin_term(value);
             if builtin_value.is_some() {
                 return Rc::new(builtin_value.unwrap());
             }
@@ -281,7 +285,7 @@ fn process_expr_inner_binary(
                 lhs_term = Rc::new(Term::Variable(bound_symbol.1));
             } else if let Some(lookup) = symbol_table.get(value) {
                 lhs_term = Rc::clone(lookup);
-            } else if let Some(builtin) = builtins::try_builtin_symbol_to_term(value) {
+            } else if let Some(builtin) = builtins::try_ast_symbol_to_builtin_term(value) {
                 lhs_term = Rc::new(builtin);
             } else {
                 lhs_term = Rc::new(Term::Lazy(value.clone()));
@@ -323,7 +327,7 @@ pub fn process(
 
     let mut output_terms: Vec<Rc<Term>> = vec![];
 
-    for (_index, statement) in program.iter().enumerate() {
+    for (index, statement) in program.iter().enumerate() {
         match statement {
             ast::Statement::Definition {
                 symbol,
@@ -350,7 +354,7 @@ pub fn process(
                 let term = process_expr(&symbol_table, expression, &vec![]);
                 let (result_term, _) = repeatedly_reduce_term(&symbol_table, term, &None, false)?;
 
-                // println!("Reduction terminated, result:\n{}", term);
+                println!("[{}]: {}", index, result_term);
                 output_terms.push(result_term);
             }
         }
