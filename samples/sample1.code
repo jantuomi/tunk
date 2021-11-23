@@ -1,2 +1,2 @@
-int.increment 1;
-int.increment 10;
+fn a b = b a;
+fn 10 int.add 20;
