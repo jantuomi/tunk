@@ -27,7 +27,7 @@ pub enum Term {
     Application(Rc<Term>, Rc<Term>),
     Primitive(Value),
     Lazy(String),
-    Builtin(String, Vec<Value>),
+    Builtin(builtins::Builtin),
 }
 
 impl Term {
@@ -40,7 +40,7 @@ impl Term {
                 Value::Integer(int_val) => format!("{}Integer({})", indent_str, int_val),
                 Value::String(str_val) => format!("{}String({})", indent_str, str_val),
             },
-            Term::Builtin(symbol, _) => format!("{}Builtin({})", indent_str, symbol),
+            Term::Builtin(builtin) => format!("{}{}", indent_str, builtin),
             Term::Abstraction(v, body) => format!(
                 "{}Abstraction({})\n{}",
                 indent_str,
@@ -137,9 +137,7 @@ pub fn reduce_term(
                     &Some((*abs_v, subst_rhs_rc)),
                     resolve_lazy,
                 ),
-                Term::Builtin(symbol, bound_arguments) => {
-                    builtins::evaluate_builtin(symbol, bound_arguments, subst_rhs_rc)
-                }
+                Term::Builtin(builtin) => builtins::evaluate_builtin(builtin, subst_rhs_rc),
                 _ => Ok((
                     Rc::new(Term::Application(subst_lhs_rc, subst_rhs_rc)),
                     subst_n,
@@ -157,7 +155,7 @@ pub fn reduce_term(
             )?;
             Ok((Rc::new(Term::Abstraction(*abs_v, subst_body)), subst_n))
         }
-        Term::Builtin(_, _) => Ok((term_rc, 0)),
+        Term::Builtin(_) => Ok((term_rc, 0)),
         // Term::Lazy(symbol) => {
         //     if resolve_lazy {
         //         let table_lookup_value = symbol_table.get(symbol);

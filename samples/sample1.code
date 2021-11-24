@@ -1,2 +1,5 @@
-fn a b = b a;
-fn 10 int.add 20;
+f a b = a (int.add 10);
+f;
+f id;
+f id id;
+f id id -50;
