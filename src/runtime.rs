@@ -111,16 +111,10 @@ pub fn reduce_term(
 ) -> ReductionResult {
     let term = &*term_rc;
 
-    match term {
-        Term::Primitive(_) => Ok((term_rc, 0)),
-        Term::Variable(_) => substitute_var(term_rc, bound_variable_opt),
+    let (result_term, result_n) = match term {
+        Term::Primitive(_) => Ok((Rc::clone(&term_rc), 0)),
+        Term::Variable(_) => substitute_var(Rc::clone(&term_rc), bound_variable_opt),
         Term::Application(lhs_rc, rhs_rc) => {
-            let (subst_lhs_rc, lhs_n) = reduce_term(
-                symbol_table,
-                Rc::clone(lhs_rc),
-                bound_variable_opt,
-                resolve_lazy,
-            )?;
             let (subst_rhs_rc, rhs_n) = reduce_term(
                 symbol_table,
                 Rc::clone(rhs_rc),
@@ -128,23 +122,55 @@ pub fn reduce_term(
                 resolve_lazy,
             )?;
 
-            let subst_n = lhs_n + rhs_n;
+            let (result, app_n) = match &**lhs_rc {
+                Term::Abstraction(abs_v, abs_body_rc) => {
+                    let (reduced_term, reduced_n) = reduce_term(
+                        symbol_table,
+                        Rc::clone(abs_body_rc),
+                        &Some((*abs_v, subst_rhs_rc)),
+                        resolve_lazy,
+                    )?;
 
-            let (result, app_n) = match &*subst_lhs_rc {
-                Term::Abstraction(abs_v, abs_body_rc) => reduce_term(
-                    symbol_table,
-                    Rc::clone(abs_body_rc),
-                    &Some((*abs_v, subst_rhs_rc)),
-                    resolve_lazy,
-                ),
-                Term::Builtin(builtin) => builtins::evaluate_builtin(builtin, subst_rhs_rc),
-                _ => Ok((
-                    Rc::new(Term::Application(subst_lhs_rc, subst_rhs_rc)),
-                    subst_n,
-                )),
+                    let result: ReductionResult = Ok((reduced_term, reduced_n + 1));
+                    result
+                }
+                Term::Builtin(builtin) => {
+                    let (builtin_evaled_terms, builtin_n) =
+                        builtins::evaluate_builtin(builtin, subst_rhs_rc)?;
+
+                    // TODO: think this through
+                    if builtin_n > 0 {
+                        if cfg!(feature = "reduce_debug") {
+                            println!(":: builtin_n: {} > 0", builtin_n);
+                            println!(
+                                ":: returning builtin_evaled_terms:\n{}\n",
+                                builtin_evaled_terms
+                            );
+                        }
+                        Ok((builtin_evaled_terms, rhs_n + builtin_n))
+                    } else {
+                        if cfg!(feature = "reduce_debug") {
+                            println!(":: builtin_n: {} < 0", builtin_n);
+                            println!(":: returning application as is:\n{}\n", term);
+                        }
+                        Ok((Rc::clone(&term_rc), rhs_n))
+                    }
+                }
+                _ => {
+                    let (subst_lhs_rc, lhs_n) = reduce_term(
+                        symbol_table,
+                        Rc::clone(lhs_rc),
+                        bound_variable_opt,
+                        resolve_lazy,
+                    )?;
+                    Ok((
+                        Rc::new(Term::Application(subst_lhs_rc, subst_rhs_rc)),
+                        rhs_n + lhs_n,
+                    ))
+                }
             }?;
 
-            Ok((result, app_n + subst_n))
+            Ok((result, app_n))
         }
         Term::Abstraction(abs_v, body_rc) => {
             let (subst_body, subst_n) = reduce_term(
@@ -155,7 +181,7 @@ pub fn reduce_term(
             )?;
             Ok((Rc::new(Term::Abstraction(*abs_v, subst_body)), subst_n))
         }
-        Term::Builtin(_) => Ok((term_rc, 0)),
+        Term::Builtin(_) => Ok((Rc::clone(&term_rc), 0)),
         // Term::Lazy(symbol) => {
         //     if resolve_lazy {
         //         let table_lookup_value = symbol_table.get(symbol);
@@ -186,7 +212,19 @@ pub fn reduce_term(
         //     }
         // }
         _ => todo!("reduce_term cases"),
+    }?;
+
+    if cfg!(feature = "reduce_debug") {
+        println!(
+            "reduce_term with:\nterm_rc:\n{}\nbound_variable_opt:\n{}\nresolve_lazy:\n{}\n",
+            Rc::clone(&term_rc),
+            _bound_variable_opt_to_string(bound_variable_opt),
+            resolve_lazy
+        );
+        println!("result_term:\n{}\nresult_n: {}\n", result_term, result_n);
+        println!("\n=========\n");
     }
+    Ok((result_term, result_n))
 }
 
 const MAX_REDUCTION_ITERATIONS: usize = 1000;

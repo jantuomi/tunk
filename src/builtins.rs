@@ -10,6 +10,27 @@ pub struct Builtin {
     pub arguments: Vec<Value>,
 }
 
+impl Builtin {
+    pub fn new(identifier: &'static str) -> Builtin {
+        Builtin {
+            identifier: identifier,
+            repr_name: identifier,
+            arguments: vec![],
+        }
+    }
+
+    // pub fn bind_arg(self: &Builtin, arg: &Value) -> Builtin {
+    //     let mut new_args = self.arguments.clone();
+    //     new_args.push(arg.clone());
+
+    //     Builtin {
+    //         identifier: new_identifier,
+    //         repr_name: self.repr_name,
+    //         arguments: new_args,
+    //     }
+    // }
+}
+
 impl fmt::Display for Builtin {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut arg_str = String::new();
@@ -19,6 +40,13 @@ impl fmt::Display for Builtin {
 
         write!(f, "Builtin({}){}", self.repr_name, arg_str)
     }
+}
+
+fn argument_error(builtin_id: &'static str, arg: &Value) -> Result<(Rc<Term>, usize), String> {
+    Err(format!(
+        "[runtime] cannot apply builtin {} to argument {}",
+        builtin_id, arg
+    ))
 }
 
 pub const B_INTEGER_EQ: &str = "int.eq?";
@@ -49,21 +77,9 @@ pub fn try_ast_symbol_to_builtin_term(symbol: &ast::Symbol) -> Option<Term> {
         "true" => return Some(make_boolean_true_function()),
         "false" => return Some(make_boolean_false_function()),
         "id" => return Some(make_identity_function()),
-        B_INTEGER_EQ => Builtin {
-            identifier: B_INTEGER_EQ,
-            repr_name: B_INTEGER_EQ,
-            arguments: vec![],
-        },
-        B_INTEGER_INCREMENT => Builtin {
-            identifier: B_INTEGER_INCREMENT,
-            repr_name: B_INTEGER_INCREMENT,
-            arguments: vec![],
-        },
-        B_INTEGER_ADD => Builtin {
-            identifier: B_INTEGER_ADD,
-            repr_name: B_INTEGER_ADD,
-            arguments: vec![],
-        },
+        B_INTEGER_EQ => Builtin::new(B_INTEGER_EQ),
+        B_INTEGER_INCREMENT => Builtin::new(B_INTEGER_INCREMENT),
+        B_INTEGER_ADD => Builtin::new(B_INTEGER_ADD),
         _ => return None,
     };
 
@@ -82,12 +98,7 @@ pub fn evaluate_builtin(builtin: &Builtin, rhs: Rc<Term>) -> Result<(Rc<Term>, u
                     };
                     Term::Builtin(new_builtin)
                 }
-                other => {
-                    return Err(format!(
-                        "[runtime] cannot apply builtin {} to argument {}",
-                        builtin.identifier, other
-                    ))
-                }
+                other => return argument_error(builtin.identifier, other),
             },
             _ => return Ok((Rc::new(Term::Builtin(builtin.clone())), 0)),
         },
@@ -104,32 +115,17 @@ pub fn evaluate_builtin(builtin: &Builtin, rhs: Rc<Term>) -> Result<(Rc<Term>, u
                                 make_boolean_false_function()
                             }
                         }
-                        other => {
-                            return Err(format!(
-                                "[runtime] cannot apply builtin {} to argument {}",
-                                builtin.identifier, other
-                            ))
-                        }
+                        other => return argument_error(builtin.identifier, other),
                     }
                 }
-                other => {
-                    return Err(format!(
-                        "[runtime] cannot apply builtin {} to argument {}",
-                        builtin.identifier, other
-                    ))
-                }
+                other => return argument_error(builtin.identifier, other),
             },
             _ => return Ok((Rc::new(Term::Builtin(builtin.clone())), 0)),
         },
         B_INTEGER_INCREMENT => match &*rhs {
             Term::Primitive(primitive) => match primitive {
                 Value::Integer(value) => Term::Primitive(Value::Integer(value + 1)),
-                other => {
-                    return Err(format!(
-                        "[runtime] cannot apply builtin {} to argument {}",
-                        builtin.identifier, other
-                    ))
-                }
+                other => return argument_error(builtin.identifier, other),
             },
             _ => return Ok((Rc::new(Term::Builtin(builtin.clone())), 0)),
         },
@@ -143,12 +139,7 @@ pub fn evaluate_builtin(builtin: &Builtin, rhs: Rc<Term>) -> Result<(Rc<Term>, u
                     };
                     Term::Builtin(new_builtin)
                 }
-                other => {
-                    return Err(format!(
-                        "[runtime] cannot apply builtin {} to argument {}",
-                        builtin.identifier, other
-                    ))
-                }
+                other => return argument_error(builtin.identifier, other),
             },
             _ => return Ok((Rc::new(Term::Builtin(builtin.clone())), 0)),
         },
@@ -161,20 +152,10 @@ pub fn evaluate_builtin(builtin: &Builtin, rhs: Rc<Term>) -> Result<(Rc<Term>, u
                         Value::Integer(summand_value) => {
                             Term::Primitive(Value::Integer(summand_value + value))
                         }
-                        other => {
-                            return Err(format!(
-                                "[runtime] cannot apply builtin {} to argument {}",
-                                builtin.identifier, other
-                            ))
-                        }
+                        other => return argument_error(builtin.identifier, other),
                     }
                 }
-                other => {
-                    return Err(format!(
-                        "[runtime] cannot apply builtin {} to argument {}",
-                        builtin.identifier, other
-                    ))
-                }
+                other => return argument_error(builtin.identifier, other),
             },
             _ => return Ok((Rc::new(Term::Builtin(builtin.clone())), 0)),
         },
