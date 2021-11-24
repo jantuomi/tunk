@@ -151,8 +151,8 @@ pub fn evaluate_builtin(builtin: &Builtin, rhs: Rc<Term>) -> Result<(Rc<Term>, u
             _ => return Ok((Rc::new(Term::Builtin(builtin.clone())), 0)),
         },
         B_BOOL_TO_STRING => {
-            let true_str_rc = Rc::new(Term::Primitive(Value::String(String::from("true"))));
-            let false_str_rc = Rc::new(Term::Primitive(Value::String(String::from("false"))));
+            let true_str_rc = Rc::new(Term::Primitive(Value::String("true".to_owned())));
+            let false_str_rc = Rc::new(Term::Primitive(Value::String("false".to_owned())));
             let inner = Rc::new(Term::Application(rhs, true_str_rc));
             Term::Application(inner, false_str_rc)
         }

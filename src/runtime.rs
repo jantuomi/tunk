@@ -71,7 +71,7 @@ pub fn advance_v() -> usize {
 fn _bound_variable_opt_to_string(bound_variable_opt: &Option<(usize, Rc<Term>)>) -> String {
     match bound_variable_opt {
         Some((v, term_rc)) => format!("({}, {})", v, term_rc),
-        None => String::from("None"),
+        None => "None".to_owned(),
     }
 }
 
@@ -202,7 +202,7 @@ pub fn repeatedly_reduce_term(
     loop {
         i += 1;
         if i >= MAX_REDUCTION_ITERATIONS {
-            return Err(String::from("MAX_REDUCTION_ITERATIONS reached"));
+            return Err("MAX_REDUCTION_ITERATIONS reached".to_owned());
         }
 
         let (result_term, substitution_n) = reduce_term(

@@ -43,7 +43,7 @@ fn reduce_integer_primitive() -> Result<(), String> {
 #[serial]
 fn reduce_string_primitive() -> Result<(), String> {
     initialize_before_test();
-    let term = Term::Primitive(Value::String(String::from("foobar")));
+    let term = Term::Primitive(Value::String("foobar".to_owned()));
     let (result_term, _) = reduce_term(&HashMap::new(), Rc::new(term.clone()), &None, false)?;
     assert_eq!(*result_term, term);
     Ok(())
@@ -56,7 +56,7 @@ fn reduce_id_call() -> Result<(), String> {
     let source = "
     id 1;
     ";
-    let (terms, symbol_table) = evaluate_from_source(String::from(source), None)?;
+    let (terms, symbol_table) = evaluate_from_source(source.to_owned(), None)?;
     assert_eq!(terms.len(), 1);
 
     let term = &terms[0];
@@ -74,7 +74,7 @@ fn reduce_id_call_negative() -> Result<(), String> {
     let source = "
     id 1;
     ";
-    let (terms, symbol_table) = evaluate_from_source(String::from(source), None)?;
+    let (terms, symbol_table) = evaluate_from_source(source.to_owned(), None)?;
     assert_eq!(terms.len(), 1);
 
     let term = &terms[0];
@@ -92,7 +92,7 @@ fn define_parameterized_func() -> Result<(), String> {
     let source = "
     f a b = b a;
     ";
-    let (terms, symbol_table) = evaluate_from_source(String::from(source), None)?;
+    let (terms, symbol_table) = evaluate_from_source(source.to_owned(), None)?;
     assert_eq!(terms.len(), 0);
 
     let term = symbol_table.get("f").ok_or("f not in symbol table")?;
@@ -133,10 +133,10 @@ fn reduce_parameterized_func() -> Result<(), String> {
     ));
 
     let mut initial_symbol_table: HashMap<String, Rc<Term>> = HashMap::new();
-    initial_symbol_table.insert(String::from("f"), Rc::clone(&predefined_f));
+    initial_symbol_table.insert("f".to_owned(), Rc::clone(&predefined_f));
 
     let (terms, symbol_table) =
-        evaluate_from_source(String::from(source), Some(initial_symbol_table))?;
+        evaluate_from_source(source.to_owned(), Some(initial_symbol_table))?;
     assert_eq!(terms.len(), 1);
     let term = &terms[0];
 
@@ -157,7 +157,7 @@ fn reduce_builtin_int_add() -> Result<(), String> {
     int.add 10 20;
     ";
 
-    let (terms, symbol_table) = evaluate_from_source(String::from(source), None)?;
+    let (terms, symbol_table) = evaluate_from_source(source.to_owned(), None)?;
     assert_eq!(terms.len(), 3);
     let term1 = &terms[0];
     let term2 = &terms[1];
@@ -209,14 +209,14 @@ fn reduce_builtin_int_eq() -> Result<(), String> {
         \"false\";
     ";
 
-    let (terms, symbol_table) = evaluate_from_source(String::from(source), None)?;
+    let (terms, symbol_table) = evaluate_from_source(source.to_owned(), None)?;
     assert_eq!(terms.len(), 2);
     let term1 = &terms[0];
     let term2 = &terms[1];
 
     // First expression
     let (result_term1, _) = repeatedly_reduce_term(&symbol_table, Rc::clone(term1), &None, false)?;
-    let expected1_string = Value::String(String::from("false"));
+    let expected1_string = Value::String("false".to_owned());
     let result_builtin1 = match &*result_term1 {
         Term::Primitive(p) => p,
         _ => return Err(format!("{} is not a primitive", result_term1)),
@@ -226,7 +226,7 @@ fn reduce_builtin_int_eq() -> Result<(), String> {
 
     // Second expression
     let (result_term2, _) = repeatedly_reduce_term(&symbol_table, Rc::clone(term2), &None, false)?;
-    let expected2_string = Value::String(String::from("true"));
+    let expected2_string = Value::String("true".to_owned());
     let result_builtin2 = match &*result_term2 {
         Term::Primitive(p) => p,
         _ => return Err(format!("{} is not a primitive", result_term2)),
@@ -250,14 +250,14 @@ fn reduce_builtin_str_eq() -> Result<(), String> {
         \"false\";
     ";
 
-    let (terms, symbol_table) = evaluate_from_source(String::from(source), None)?;
+    let (terms, symbol_table) = evaluate_from_source(source.to_owned(), None)?;
     assert_eq!(terms.len(), 2);
     let term1 = &terms[0];
     let term2 = &terms[1];
 
     // First expression
     let (result_term1, _) = repeatedly_reduce_term(&symbol_table, Rc::clone(term1), &None, false)?;
-    let expected1_string = Value::String(String::from("false"));
+    let expected1_string = Value::String("false".to_owned());
     let result_builtin1 = match &*result_term1 {
         Term::Primitive(p) => p,
         _ => return Err(format!("{} is not a primitive", result_term1)),
@@ -267,7 +267,7 @@ fn reduce_builtin_str_eq() -> Result<(), String> {
 
     // Second expression
     let (result_term2, _) = repeatedly_reduce_term(&symbol_table, Rc::clone(term2), &None, false)?;
-    let expected2_string = Value::String(String::from("true"));
+    let expected2_string = Value::String("true".to_owned());
     let result_builtin2 = match &*result_term2 {
         Term::Primitive(p) => p,
         _ => return Err(format!("{} is not a primitive", result_term2)),
@@ -288,7 +288,7 @@ fn reduce_nontrivial_terminates1() -> Result<(), String> {
             true);
     ";
 
-    let (terms, symbol_table) = evaluate_from_source(String::from(source), None)?;
+    let (terms, symbol_table) = evaluate_from_source(source.to_owned(), None)?;
     assert_eq!(terms.len(), 1);
     let term1 = &terms[0];
 
@@ -310,7 +310,7 @@ fn reduce_nontrivial_terminates2() -> Result<(), String> {
     string.eq? result \"true\";
     ";
 
-    let (terms, symbol_table) = evaluate_from_source(String::from(source), None)?;
+    let (terms, symbol_table) = evaluate_from_source(source.to_owned(), None)?;
     assert_eq!(terms.len(), 1);
     let term1 = &terms[0];
 

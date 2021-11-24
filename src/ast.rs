@@ -43,7 +43,7 @@ impl Statement {
 
             while let Some(p) = inner.next() {
                 match p.as_rule() {
-                    Rule::symbol => parameters.push(String::from(p.as_span().as_str())),
+                    Rule::symbol => parameters.push(p.as_span().as_str().to_owned()),
                     Rule::expression => {
                         let expression_inners: Vec<ExpressionInner> =
                             p.into_inner().map(ExpressionInner::from_pair).collect();
@@ -60,7 +60,7 @@ impl Statement {
                 expression_opt.expect("[ast] no expression found as child of definition");
 
             Statement::Definition {
-                symbol: String::from(symbol),
+                symbol: symbol.to_owned(),
                 parameters: parameters,
                 expression: expression,
             }
@@ -99,7 +99,7 @@ impl ExpressionInner {
                 chars.next();
                 chars.next_back();
                 let s = chars.as_str();
-                ExpressionInner::StringLiteral(String::from(s))
+                ExpressionInner::StringLiteral(s.to_owned())
             }
             Rule::expression => {
                 let expression_inners: Vec<ExpressionInner> =
@@ -145,7 +145,7 @@ fn integer_from_pair(pair: pest::iterators::Pair<Rule>) -> i64 {
 
 pub type StringLiteral = String;
 fn string_from_pair(pair: pest::iterators::Pair<Rule>) -> String {
-    String::from(pair.as_span().as_str())
+    pair.as_span().as_str().to_owned()
 }
 
 pub type Symbol = String;
