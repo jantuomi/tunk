@@ -1,11 +1,18 @@
-# f a b = int.eq? a b;
-# f 1 2
-#     "true"
-#     "false";
+# result =
+#     bool.to-string
+#         (int.eq? 2 2);
 
-compare? a b fn = fn b a;
-compare? 2 2 int.eq?
-    "true"
-    "false";
+# string.eq? result "true";
 
-int.eq? "foobar";
+# string.eq?
+#     (bool.to-string
+#         (int.eq? 2 2))
+#     "true";
+
+# string.eq?
+#     (bool.to-string
+#         (int.eq? 2 2));
+
+string.eq?
+    (bool.to-string
+        true);

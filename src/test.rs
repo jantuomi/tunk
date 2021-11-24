@@ -236,3 +236,86 @@ fn reduce_builtin_int_eq() -> Result<(), String> {
 
     Ok(())
 }
+
+#[test]
+#[serial]
+fn reduce_builtin_str_eq() -> Result<(), String> {
+    initialize_before_test();
+    let source = "
+    string.eq? \"foo\" \"bar\"
+        \"true\"
+        \"false\";
+    string.eq? \"baz\" \"baz\"
+        \"true\"
+        \"false\";
+    ";
+
+    let (terms, symbol_table) = evaluate_from_source(String::from(source), None)?;
+    assert_eq!(terms.len(), 2);
+    let term1 = &terms[0];
+    let term2 = &terms[1];
+
+    // First expression
+    let (result_term1, _) = repeatedly_reduce_term(&symbol_table, Rc::clone(term1), &None, false)?;
+    let expected1_string = Value::String(String::from("false"));
+    let result_builtin1 = match &*result_term1 {
+        Term::Primitive(p) => p,
+        _ => return Err(format!("{} is not a primitive", result_term1)),
+    };
+
+    assert_eq!(*result_builtin1, expected1_string);
+
+    // Second expression
+    let (result_term2, _) = repeatedly_reduce_term(&symbol_table, Rc::clone(term2), &None, false)?;
+    let expected2_string = Value::String(String::from("true"));
+    let result_builtin2 = match &*result_term2 {
+        Term::Primitive(p) => p,
+        _ => return Err(format!("{} is not a primitive", result_term2)),
+    };
+
+    assert_eq!(*result_builtin2, expected2_string);
+
+    Ok(())
+}
+
+#[test]
+#[serial]
+fn reduce_nontrivial_terminates1() -> Result<(), String> {
+    initialize_before_test();
+    let source = "
+    string.eq?
+        (bool.to-string
+            true);
+    ";
+
+    let (terms, symbol_table) = evaluate_from_source(String::from(source), None)?;
+    assert_eq!(terms.len(), 1);
+    let term1 = &terms[0];
+
+    let (_, _) = reduce_term(&symbol_table, Rc::clone(term1), &None, false)?;
+
+    // Terminates
+    Ok(())
+}
+
+#[test]
+#[serial]
+fn reduce_nontrivial_terminates2() -> Result<(), String> {
+    initialize_before_test();
+    let source = "
+    result =
+        bool.to-string
+            (int.eq? 2 2);
+
+    string.eq? result \"true\";
+    ";
+
+    let (terms, symbol_table) = evaluate_from_source(String::from(source), None)?;
+    assert_eq!(terms.len(), 1);
+    let term1 = &terms[0];
+
+    let (_, _) = repeatedly_reduce_term(&symbol_table, Rc::clone(term1), &None, false)?;
+
+    // Terminates
+    Ok(())
+}

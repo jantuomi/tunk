@@ -1,5 +1,6 @@
 use super::ast;
 use super::runtime::{advance_v, Term, Value};
+use super::*;
 use std::fmt;
 use std::rc::Rc;
 
@@ -42,7 +43,7 @@ impl fmt::Display for Builtin {
     }
 }
 
-fn argument_type_error(builtin_id: &'static str, arg: &Value) -> Result<(Rc<Term>, usize), String> {
+fn argument_type_error(builtin_id: &'static str, arg: &Term) -> Result<(Rc<Term>, usize), String> {
     Err(format!(
         "[runtime] cannot apply builtin {} to argument {}",
         builtin_id, arg
@@ -56,9 +57,14 @@ fn argument_n_error(builtin_id: &'static str, n: usize) -> Result<(Rc<Term>, usi
     ))
 }
 
-pub const B_INTEGER_EQ: &str = "int.eq?";
-pub const B_INTEGER_INCREMENT: &str = "int.increment";
-pub const B_INTEGER_ADD: &str = "int.add";
+macro_rules! boolean_function {
+    ($value:expr) => {
+        match $value {
+            true => make_boolean_true_function(),
+            false => make_boolean_false_function(),
+        }
+    };
+}
 
 pub fn make_boolean_true_function() -> Term {
     let x = advance_v();
@@ -77,6 +83,12 @@ pub fn make_identity_function() -> Term {
     Term::Abstraction(v, Rc::new(Term::Variable(v)))
 }
 
+pub const B_INTEGER_EQ: &str = "int.eq?";
+pub const B_INTEGER_INCREMENT: &str = "int.increment";
+pub const B_INTEGER_ADD: &str = "int.add";
+pub const B_STRING_EQ: &str = "string.eq?";
+pub const B_BOOL_TO_STRING: &str = "bool.to-string";
+
 pub fn try_ast_symbol_to_builtin_term(symbol: &ast::Symbol) -> Option<Term> {
     let builtin = match symbol.as_str() {
         "true" => return Some(make_boolean_true_function()),
@@ -85,6 +97,8 @@ pub fn try_ast_symbol_to_builtin_term(symbol: &ast::Symbol) -> Option<Term> {
         B_INTEGER_EQ => Builtin::new(B_INTEGER_EQ, 2),
         B_INTEGER_INCREMENT => Builtin::new(B_INTEGER_INCREMENT, 1),
         B_INTEGER_ADD => Builtin::new(B_INTEGER_ADD, 2),
+        B_STRING_EQ => Builtin::new(B_STRING_EQ, 2),
+        B_BOOL_TO_STRING => Builtin::new(B_BOOL_TO_STRING, 1),
         _ => return None,
     };
 
@@ -94,54 +108,54 @@ pub fn try_ast_symbol_to_builtin_term(symbol: &ast::Symbol) -> Option<Term> {
 pub fn evaluate_builtin(builtin: &Builtin, rhs: Rc<Term>) -> Result<(Rc<Term>, usize), String> {
     let result_term = match builtin.identifier {
         B_INTEGER_EQ => match &*rhs {
-            Term::Primitive(primitive) => match primitive {
-                Value::Integer(value) => match builtin.n_arguments {
-                    2 => Term::Builtin(builtin.bind_arg(primitive)),
-                    1 => {
-                        let other = &builtin.arguments[0];
-                        match other {
-                            Value::Integer(other_value) => {
-                                if value == other_value {
-                                    make_boolean_true_function()
-                                } else {
-                                    make_boolean_false_function()
-                                }
-                            }
-                            other => return argument_type_error(builtin.identifier, other),
-                        }
-                    }
-                    _ => return argument_n_error(builtin.identifier, builtin.n_arguments),
-                },
-                other => return argument_type_error(builtin.identifier, other),
+            Term::Primitive(primitive @ Value::Integer(value)) => match builtin.n_arguments {
+                2 => Term::Builtin(builtin.bind_arg(primitive)),
+                1 => {
+                    let other_value = extract_enum_value!(&builtin.arguments[0], Value::Integer(other_value) => other_value);
+
+                    boolean_function!(value == other_value)
+                }
+                _ => return argument_n_error(builtin.identifier, builtin.n_arguments),
             },
+            Term::Primitive(_) => return argument_type_error(builtin.identifier, &*rhs),
             _ => return Ok((Rc::new(Term::Builtin(builtin.clone())), 0)),
         },
         B_INTEGER_INCREMENT => match &*rhs {
-            Term::Primitive(primitive) => match primitive {
-                Value::Integer(value) => Term::Primitive(Value::Integer(value + 1)),
-                other => return argument_type_error(builtin.identifier, other),
-            },
+            Term::Primitive(Value::Integer(value)) => Term::Primitive(Value::Integer(value + 1)),
+            Term::Primitive(_) => return argument_type_error(builtin.identifier, &*rhs),
             _ => return Ok((Rc::new(Term::Builtin(builtin.clone())), 0)),
         },
         B_INTEGER_ADD => match &*rhs {
-            Term::Primitive(primitive) => match primitive {
-                Value::Integer(value) => match builtin.n_arguments {
-                    2 => Term::Builtin(builtin.bind_arg(primitive)),
-                    1 => {
-                        let other = &builtin.arguments[0];
-                        match other {
-                            Value::Integer(other_value) => {
-                                Term::Primitive(Value::Integer(value + other_value))
-                            }
-                            other => return argument_type_error(builtin.identifier, other),
-                        }
-                    }
-                    _ => return argument_n_error(builtin.identifier, builtin.n_arguments),
-                },
-                other => return argument_type_error(builtin.identifier, other),
+            Term::Primitive(primitive @ Value::Integer(value)) => match builtin.n_arguments {
+                2 => Term::Builtin(builtin.bind_arg(primitive)),
+                1 => {
+                    let other_value = extract_enum_value!(&builtin.arguments[0], Value::Integer(other_value) => other_value);
+                    Term::Primitive(Value::Integer(value + other_value))
+                }
+                _ => return argument_n_error(builtin.identifier, builtin.n_arguments),
             },
+            Term::Primitive(_) => return argument_type_error(builtin.identifier, &*rhs),
             _ => return Ok((Rc::new(Term::Builtin(builtin.clone())), 0)),
         },
+        B_STRING_EQ => match &*rhs {
+            Term::Primitive(primitive @ Value::String(value)) => match builtin.n_arguments {
+                2 => Term::Builtin(builtin.bind_arg(primitive)),
+                1 => {
+                    let other_value = extract_enum_value!(&builtin.arguments[0], Value::String(other_value) => other_value);
+
+                    boolean_function!(value == other_value)
+                }
+                _ => return argument_n_error(builtin.identifier, builtin.n_arguments),
+            },
+            Term::Primitive(_) => return argument_type_error(builtin.identifier, &*rhs),
+            _ => return Ok((Rc::new(Term::Builtin(builtin.clone())), 0)),
+        },
+        B_BOOL_TO_STRING => {
+            let true_str_rc = Rc::new(Term::Primitive(Value::String(String::from("true"))));
+            let false_str_rc = Rc::new(Term::Primitive(Value::String(String::from("false"))));
+            let inner = Rc::new(Term::Application(rhs, true_str_rc));
+            Term::Application(inner, false_str_rc)
+        }
         _ => {
             return Err(format!(
                 "[runtime] invalid builtin evaluated: {}",

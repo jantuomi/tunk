@@ -15,7 +15,7 @@ impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Value::Integer(value) => write!(f, "Integer({})", value),
-            Value::String(value) => write!(f, "String({})", value),
+            Value::String(value) => write!(f, "String(\"{}\")", value),
         }
     }
 }
@@ -36,10 +36,7 @@ impl Term {
         match self {
             Term::Lazy(symbol) => format!("{}Lazy({})", indent_str, symbol),
             Term::Variable(v) => format!("{}Variable({})", indent_str, v),
-            Term::Primitive(value) => match value {
-                Value::Integer(int_val) => format!("{}Integer({})", indent_str, int_val),
-                Value::String(str_val) => format!("{}String({})", indent_str, str_val),
-            },
+            Term::Primitive(value) => format!("{}{}", indent_str, value),
             Term::Builtin(builtin) => format!("{}{}", indent_str, builtin),
             Term::Abstraction(v, body) => format!(
                 "{}Abstraction({})\n{}",
@@ -136,24 +133,15 @@ pub fn reduce_term(
                 }
                 Term::Builtin(builtin) => {
                     let (builtin_evaled_terms, builtin_n) =
-                        builtins::evaluate_builtin(builtin, subst_rhs_rc)?;
+                        builtins::evaluate_builtin(builtin, Rc::clone(&subst_rhs_rc))?;
 
                     // TODO: think this through
                     if builtin_n > 0 {
-                        if cfg!(feature = "reduce_debug") {
-                            println!(":: builtin_n: {} > 0", builtin_n);
-                            println!(
-                                ":: returning builtin_evaled_terms:\n{}\n",
-                                builtin_evaled_terms
-                            );
-                        }
                         Ok((builtin_evaled_terms, rhs_n + builtin_n))
                     } else {
-                        if cfg!(feature = "reduce_debug") {
-                            println!(":: builtin_n: {} < 0", builtin_n);
-                            println!(":: returning application as is:\n{}\n", term);
-                        }
-                        Ok((Rc::clone(&term_rc), rhs_n))
+                        let new_app =
+                            Term::Application(Rc::clone(lhs_rc), Rc::clone(&subst_rhs_rc));
+                        Ok((Rc::new(new_app), rhs_n))
                     }
                 }
                 _ => {
@@ -163,10 +151,16 @@ pub fn reduce_term(
                         bound_variable_opt,
                         resolve_lazy,
                     )?;
-                    Ok((
-                        Rc::new(Term::Application(subst_lhs_rc, subst_rhs_rc)),
-                        rhs_n + lhs_n,
-                    ))
+
+                    let subst_n = rhs_n + lhs_n;
+                    if subst_n > 0 {
+                        let new_app = Term::Application(subst_lhs_rc, subst_rhs_rc);
+                        Ok((Rc::new(new_app), subst_n))
+                    } else {
+                        let new_app =
+                            Term::Application(Rc::clone(lhs_rc), Rc::clone(&subst_rhs_rc));
+                        Ok((Rc::new(new_app), 0))
+                    }
                 }
             }?;
 
@@ -179,51 +173,19 @@ pub fn reduce_term(
                 bound_variable_opt,
                 resolve_lazy,
             )?;
-            Ok((Rc::new(Term::Abstraction(*abs_v, subst_body)), subst_n))
+
+            if subst_n > 0 {
+                let new_abs = Term::Abstraction(*abs_v, subst_body);
+
+                Ok((Rc::new(new_abs), subst_n))
+            } else {
+                Ok((Rc::clone(&term_rc), 0))
+            }
         }
         Term::Builtin(_) => Ok((Rc::clone(&term_rc), 0)),
-        // Term::Lazy(symbol) => {
-        //     if resolve_lazy {
-        //         let table_lookup_value = symbol_table.get(symbol);
-        //         if table_lookup_value.is_some() {
-        //             let lookup_rc = table_lookup_value.unwrap();
-        //             return reduce_term(
-        //                 symbol_table,
-        //                 lookup_rc.clone(),
-        //                 bound_variable_opt,
-        //                 resolve_lazy,
-        //             );
-        //         }
-
-        //         let builtin_value = builtins::try_builtin_symbol_to_term(symbol);
-        //         if builtin_value.is_some() {
-        //             let builtin_rc = Rc::new(builtin_value.unwrap());
-        //             return reduce_term(
-        //                 symbol_table,
-        //                 builtin_rc.clone(),
-        //                 bound_variable_opt,
-        //                 resolve_lazy,
-        //             );
-        //         }
-
-        //         panic!("[runtime] symbol {} not defined", symbol);
-        //     } else {
-        //         term_rc
-        //     }
-        // }
         _ => todo!("reduce_term cases"),
     }?;
 
-    if cfg!(feature = "reduce_debug") {
-        println!(
-            "reduce_term with:\nterm_rc:\n{}\nbound_variable_opt:\n{}\nresolve_lazy:\n{}\n",
-            Rc::clone(&term_rc),
-            _bound_variable_opt_to_string(bound_variable_opt),
-            resolve_lazy
-        );
-        println!("result_term:\n{}\nresult_n: {}\n", result_term, result_n);
-        println!("\n=========\n");
-    }
     Ok((result_term, result_n))
 }
 
@@ -242,14 +204,14 @@ pub fn repeatedly_reduce_term(
         if i >= MAX_REDUCTION_ITERATIONS {
             return Err(String::from("MAX_REDUCTION_ITERATIONS reached"));
         }
-        // println!("Term:\n{}", term);
+
         let (result_term, substitution_n) = reduce_term(
             &symbol_table,
             term.clone(),
             bound_variable_opt,
             resolve_lazy,
         )?;
-        // println!("Reduction OK:\n{},\nN: {}\n", result_term, substitution_n);
+
         if substitution_n > 0 {
             term = result_term;
         } else {
@@ -372,7 +334,6 @@ pub fn process(
                 parameters,
                 expression,
             } => {
-                // println!("[runtime] defining symbol: {:#?}", symbol);
                 let bound_params: Vec<(ast::Symbol, usize)> = parameters
                     .iter()
                     .map(|param| (param.clone(), advance_v()))
@@ -384,11 +345,9 @@ pub fn process(
                     term = Rc::new(Term::Abstraction(*v, Rc::clone(&term)));
                 });
 
-                // println!("Term:\n{}", term);
                 symbol_table.insert(symbol.clone(), term);
             }
             ast::Statement::Expression(expression) => {
-                // println!("[runtime] evaluating free-standing expression");
                 let term = process_expr(&symbol_table, expression, &vec![]);
                 let (result_term, _) = repeatedly_reduce_term(&symbol_table, term, &None, false)?;
 
