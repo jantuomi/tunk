@@ -175,7 +175,7 @@ fn reduce_builtin_int_add() -> Result<(), String> {
 
     // Second expression
     let (result_term2, _) = repeatedly_reduce_term(&symbol_table, Rc::clone(term2), &None, false)?;
-    let expected2_identifier = builtins::B_INTEGER_ADD_1;
+    let expected2_identifier = builtins::B_INTEGER_ADD;
     let result_builtin2 = match &*result_term2 {
         Term::Builtin(b) => b,
         _ => return Err(format!("{} is not a builtin", result_term2)),

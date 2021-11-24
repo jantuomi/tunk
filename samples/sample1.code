@@ -7,3 +7,5 @@ compare? a b fn = fn b a;
 compare? 2 2 int.eq?
     "true"
     "false";
+
+int.eq? "foobar";
