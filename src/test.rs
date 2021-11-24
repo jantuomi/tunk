@@ -31,7 +31,7 @@ fn initialize_before_test() {
 
 #[test]
 #[serial]
-fn test_reduce_integer_primitive() -> Result<(), String> {
+fn reduce_integer_primitive() -> Result<(), String> {
     initialize_before_test();
     let term = Term::Primitive(Value::Integer(123));
     let (result_term, _) = reduce_term(&HashMap::new(), Rc::new(term.clone()), &None, false)?;
@@ -41,7 +41,7 @@ fn test_reduce_integer_primitive() -> Result<(), String> {
 
 #[test]
 #[serial]
-fn test_reduce_string_primitive() -> Result<(), String> {
+fn reduce_string_primitive() -> Result<(), String> {
     initialize_before_test();
     let term = Term::Primitive(Value::String(String::from("foobar")));
     let (result_term, _) = reduce_term(&HashMap::new(), Rc::new(term.clone()), &None, false)?;
@@ -51,7 +51,7 @@ fn test_reduce_string_primitive() -> Result<(), String> {
 
 #[test]
 #[serial]
-fn test_reduce_id_call() -> Result<(), String> {
+fn reduce_id_call() -> Result<(), String> {
     initialize_before_test();
     let source = "
     id 1;
@@ -69,7 +69,7 @@ fn test_reduce_id_call() -> Result<(), String> {
 
 #[test]
 #[serial]
-fn test_reduce_id_call_negative() -> Result<(), String> {
+fn reduce_id_call_negative() -> Result<(), String> {
     initialize_before_test();
     let source = "
     id 1;
@@ -87,7 +87,7 @@ fn test_reduce_id_call_negative() -> Result<(), String> {
 
 #[test]
 #[serial]
-fn test_define_parameterized_func() -> Result<(), String> {
+fn define_parameterized_func() -> Result<(), String> {
     initialize_before_test();
     let source = "
     f a b = b a;
@@ -115,7 +115,7 @@ fn test_define_parameterized_func() -> Result<(), String> {
 
 #[test]
 #[serial]
-fn test_reduce_parameterized_func() -> Result<(), String> {
+fn reduce_parameterized_func() -> Result<(), String> {
     initialize_before_test();
     let source = "
     f 10 id;
@@ -144,5 +144,54 @@ fn test_reduce_parameterized_func() -> Result<(), String> {
 
     let expected = Term::Primitive(Value::Integer(10));
     assert_eq!(*result_term, expected);
+    Ok(())
+}
+
+#[test]
+#[serial]
+fn reduce_builtin_int_add() -> Result<(), String> {
+    initialize_before_test();
+    let source = "
+    int.add;
+    int.add 10;
+    int.add 10 20;
+    ";
+
+    let (terms, symbol_table) = evaluate_from_source(String::from(source), None)?;
+    assert_eq!(terms.len(), 3);
+    let term1 = &terms[0];
+    let term2 = &terms[1];
+    let term3 = &terms[2];
+
+    // First expression
+    let (result_term1, _) = repeatedly_reduce_term(&symbol_table, Rc::clone(term1), &None, false)?;
+    let expected1_identifier = builtins::B_INTEGER_ADD;
+    let result_builtin1 = match &*result_term1 {
+        Term::Builtin(b) => b,
+        _ => return Err(format!("{} is not a builtin", result_term1)),
+    };
+
+    assert_eq!(result_builtin1.identifier, expected1_identifier);
+
+    // Second expression
+    let (result_term2, _) = repeatedly_reduce_term(&symbol_table, Rc::clone(term2), &None, false)?;
+    let expected2_identifier = builtins::B_INTEGER_ADD_1;
+    let result_builtin2 = match &*result_term2 {
+        Term::Builtin(b) => b,
+        _ => return Err(format!("{} is not a builtin", result_term2)),
+    };
+
+    assert_eq!(result_builtin2.identifier, expected2_identifier);
+
+    // Third expression
+    let (result_term3, _) = repeatedly_reduce_term(&symbol_table, Rc::clone(term3), &None, false)?;
+    let expected3 = Value::Integer(30);
+    let result_builtin3 = match &*result_term3 {
+        Term::Primitive(p) => p,
+        _ => return Err(format!("{} is not a primitive", result_term3)),
+    };
+
+    assert_eq!(*result_builtin3, expected3);
+
     Ok(())
 }

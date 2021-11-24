@@ -5,9 +5,9 @@ use std::rc::Rc;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Builtin {
-    identifier: &'static str,
-    repr_name: &'static str,
-    arguments: Vec<Value>,
+    pub identifier: &'static str,
+    pub repr_name: &'static str,
+    pub arguments: Vec<Value>,
 }
 
 impl fmt::Display for Builtin {
