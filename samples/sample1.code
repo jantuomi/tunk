@@ -1,5 +1,7 @@
-f a b = a (int.add 10);
-f;
-f id;
-f id id;
-f id id -50;
+int.eq? 10 20
+    "true"
+    "false";
+
+int.eq? 30 30
+    "true"
+    "false";

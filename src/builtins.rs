@@ -21,7 +21,8 @@ impl fmt::Display for Builtin {
     }
 }
 
-pub const B_INTEGER_EQ0: &str = "int.eq0?";
+pub const B_INTEGER_EQ: &str = "int.eq?";
+pub const B_INTEGER_EQ_1: &str = "##int.eq?_1";
 pub const B_INTEGER_INCREMENT: &str = "int.increment";
 pub const B_INTEGER_ADD: &str = "int.add";
 pub const B_INTEGER_ADD_1: &str = "##int.add_1";
@@ -48,9 +49,9 @@ pub fn try_ast_symbol_to_builtin_term(symbol: &ast::Symbol) -> Option<Term> {
         "true" => return Some(make_boolean_true_function()),
         "false" => return Some(make_boolean_false_function()),
         "id" => return Some(make_identity_function()),
-        B_INTEGER_EQ0 => Builtin {
-            identifier: B_INTEGER_EQ0,
-            repr_name: B_INTEGER_EQ0,
+        B_INTEGER_EQ => Builtin {
+            identifier: B_INTEGER_EQ,
+            repr_name: B_INTEGER_EQ,
             arguments: vec![],
         },
         B_INTEGER_INCREMENT => Builtin {
@@ -71,13 +72,44 @@ pub fn try_ast_symbol_to_builtin_term(symbol: &ast::Symbol) -> Option<Term> {
 
 pub fn evaluate_builtin(builtin: &Builtin, rhs: Rc<Term>) -> Result<(Rc<Term>, usize), String> {
     let result_term = match builtin.identifier {
-        B_INTEGER_EQ0 => match &*rhs {
+        B_INTEGER_EQ => match &*rhs {
+            Term::Primitive(primitive) => match primitive {
+                Value::Integer(_) => {
+                    let new_builtin = Builtin {
+                        identifier: B_INTEGER_EQ_1,
+                        repr_name: builtin.identifier,
+                        arguments: vec![primitive.clone()],
+                    };
+                    Term::Builtin(new_builtin)
+                }
+                other => {
+                    return Err(format!(
+                        "[runtime] cannot apply builtin {} to argument {}",
+                        builtin.identifier, other
+                    ))
+                }
+            },
+            _ => return Ok((Rc::new(Term::Builtin(builtin.clone())), 0)),
+        },
+        B_INTEGER_EQ_1 => match &*rhs {
             Term::Primitive(primitive) => match primitive {
                 Value::Integer(value) => {
-                    if *value == 0 {
-                        make_boolean_true_function()
-                    } else {
-                        make_boolean_false_function()
+                    assert_eq!(builtin.arguments.len(), 1);
+                    let other = &builtin.arguments[0];
+                    match other {
+                        Value::Integer(other_value) => {
+                            if value == other_value {
+                                make_boolean_true_function()
+                            } else {
+                                make_boolean_false_function()
+                            }
+                        }
+                        other => {
+                            return Err(format!(
+                                "[runtime] cannot apply builtin {} to argument {}",
+                                builtin.identifier, other
+                            ))
+                        }
                     }
                 }
                 other => {
