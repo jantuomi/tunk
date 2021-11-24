@@ -140,7 +140,7 @@ fn reduce_parameterized_func() -> Result<(), String> {
     assert_eq!(terms.len(), 1);
     let term = &terms[0];
 
-    let (result_term, _) = repeatedly_reduce_term(&symbol_table, Rc::clone(term), &None, false)?;
+    let result_term = repeatedly_reduce_term(&symbol_table, Rc::clone(term), &None)?;
 
     let expected = Term::Primitive(Value::Integer(10));
     assert_eq!(*result_term, expected);
@@ -164,7 +164,7 @@ fn reduce_builtin_int_add() -> Result<(), String> {
     let term3 = &terms[2];
 
     // First expression
-    let (result_term1, _) = repeatedly_reduce_term(&symbol_table, Rc::clone(term1), &None, false)?;
+    let result_term1 = repeatedly_reduce_term(&symbol_table, Rc::clone(term1), &None)?;
     let expected1_identifier = builtins::B_INTEGER_ADD;
     let result_builtin1 = match &*result_term1 {
         Term::Builtin(b) => b,
@@ -174,7 +174,7 @@ fn reduce_builtin_int_add() -> Result<(), String> {
     assert_eq!(result_builtin1.identifier, expected1_identifier);
 
     // Second expression
-    let (result_term2, _) = repeatedly_reduce_term(&symbol_table, Rc::clone(term2), &None, false)?;
+    let result_term2 = repeatedly_reduce_term(&symbol_table, Rc::clone(term2), &None)?;
     let expected2_identifier = builtins::B_INTEGER_ADD;
     let result_builtin2 = match &*result_term2 {
         Term::Builtin(b) => b,
@@ -184,7 +184,7 @@ fn reduce_builtin_int_add() -> Result<(), String> {
     assert_eq!(result_builtin2.identifier, expected2_identifier);
 
     // Third expression
-    let (result_term3, _) = repeatedly_reduce_term(&symbol_table, Rc::clone(term3), &None, false)?;
+    let result_term3 = repeatedly_reduce_term(&symbol_table, Rc::clone(term3), &None)?;
     let expected3 = Value::Integer(30);
     let result_builtin3 = match &*result_term3 {
         Term::Primitive(p) => p,
@@ -215,7 +215,7 @@ fn reduce_builtin_int_eq() -> Result<(), String> {
     let term2 = &terms[1];
 
     // First expression
-    let (result_term1, _) = repeatedly_reduce_term(&symbol_table, Rc::clone(term1), &None, false)?;
+    let result_term1 = repeatedly_reduce_term(&symbol_table, Rc::clone(term1), &None)?;
     let expected1_string = Value::String("false".to_owned());
     let result_builtin1 = match &*result_term1 {
         Term::Primitive(p) => p,
@@ -225,7 +225,7 @@ fn reduce_builtin_int_eq() -> Result<(), String> {
     assert_eq!(*result_builtin1, expected1_string);
 
     // Second expression
-    let (result_term2, _) = repeatedly_reduce_term(&symbol_table, Rc::clone(term2), &None, false)?;
+    let result_term2 = repeatedly_reduce_term(&symbol_table, Rc::clone(term2), &None)?;
     let expected2_string = Value::String("true".to_owned());
     let result_builtin2 = match &*result_term2 {
         Term::Primitive(p) => p,
@@ -256,7 +256,7 @@ fn reduce_builtin_str_eq() -> Result<(), String> {
     let term2 = &terms[1];
 
     // First expression
-    let (result_term1, _) = repeatedly_reduce_term(&symbol_table, Rc::clone(term1), &None, false)?;
+    let result_term1 = repeatedly_reduce_term(&symbol_table, Rc::clone(term1), &None)?;
     let expected1_string = Value::String("false".to_owned());
     let result_builtin1 = match &*result_term1 {
         Term::Primitive(p) => p,
@@ -266,7 +266,7 @@ fn reduce_builtin_str_eq() -> Result<(), String> {
     assert_eq!(*result_builtin1, expected1_string);
 
     // Second expression
-    let (result_term2, _) = repeatedly_reduce_term(&symbol_table, Rc::clone(term2), &None, false)?;
+    let result_term2 = repeatedly_reduce_term(&symbol_table, Rc::clone(term2), &None)?;
     let expected2_string = Value::String("true".to_owned());
     let result_builtin2 = match &*result_term2 {
         Term::Primitive(p) => p,
@@ -314,8 +314,59 @@ fn reduce_nontrivial_terminates2() -> Result<(), String> {
     assert_eq!(terms.len(), 1);
     let term1 = &terms[0];
 
-    let (_, _) = repeatedly_reduce_term(&symbol_table, Rc::clone(term1), &None, false)?;
+    let _ = repeatedly_reduce_term(&symbol_table, Rc::clone(term1), &None)?;
 
     // Terminates
+    Ok(())
+}
+
+#[test]
+#[serial]
+fn problem_factorial() -> Result<(), String> {
+    initialize_before_test();
+    let source = "
+    factorial n =
+        int.eq? n 0
+            1
+            (int.mul n (factorial (int.sub n 1)));
+
+    factorial 20;
+    ";
+
+    let (terms, symbol_table) = evaluate_from_source(source.to_owned(), None)?;
+    assert_eq!(terms.len(), 1);
+    let term1 = &terms[0];
+
+    let result_rc = repeatedly_reduce_term(&symbol_table, Rc::clone(term1), &None)?;
+    let expected = Term::Primitive(Value::Integer(2432902008176640000));
+
+    assert_eq!(*result_rc, expected);
+
+    Ok(())
+}
+
+#[test]
+#[serial]
+fn problem_triangle_numbers() -> Result<(), String> {
+    initialize_before_test();
+    let source = "
+    triangle n = int.eq? n 1
+        1
+        (int.add
+            n
+            (triangle (int.sub n 1)));
+
+    triangle 500;
+    ";
+
+    let (terms, symbol_table) = evaluate_from_source(source.to_owned(), None)?;
+    assert_eq!(terms.len(), 1);
+    let term1 = &terms[0];
+
+    let result_rc = repeatedly_reduce_term(&symbol_table, Rc::clone(term1), &None)?;
+    let expected = Term::Primitive(Value::Integer(125250));
+
+    assert_eq!(*result_rc, expected);
+
     Ok(())
 }

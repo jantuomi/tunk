@@ -84,8 +84,11 @@ pub fn make_identity_function() -> Term {
 }
 
 pub const B_INTEGER_EQ: &str = "int.eq?";
-pub const B_INTEGER_INCREMENT: &str = "int.increment";
+pub const B_INTEGER_INCREMENT: &str = "int.inc";
 pub const B_INTEGER_ADD: &str = "int.add";
+pub const B_INTEGER_SUBTRACT: &str = "int.sub";
+pub const B_INTEGER_MULTIPLY: &str = "int.mul";
+pub const B_INTEGER_DIVIDE: &str = "int.div";
 pub const B_STRING_EQ: &str = "string.eq?";
 pub const B_BOOL_TO_STRING: &str = "bool.to-string";
 
@@ -97,6 +100,9 @@ pub fn try_ast_symbol_to_builtin_term(symbol: &ast::Symbol) -> Option<Term> {
         B_INTEGER_EQ => Builtin::new(B_INTEGER_EQ, 2),
         B_INTEGER_INCREMENT => Builtin::new(B_INTEGER_INCREMENT, 1),
         B_INTEGER_ADD => Builtin::new(B_INTEGER_ADD, 2),
+        B_INTEGER_SUBTRACT => Builtin::new(B_INTEGER_SUBTRACT, 2),
+        B_INTEGER_MULTIPLY => Builtin::new(B_INTEGER_MULTIPLY, 2),
+        B_INTEGER_DIVIDE => Builtin::new(B_INTEGER_DIVIDE, 2),
         B_STRING_EQ => Builtin::new(B_STRING_EQ, 2),
         B_BOOL_TO_STRING => Builtin::new(B_BOOL_TO_STRING, 1),
         _ => return None,
@@ -130,7 +136,46 @@ pub fn evaluate_builtin(builtin: &Builtin, rhs: Rc<Term>) -> Result<(Rc<Term>, u
                 2 => Term::Builtin(builtin.bind_arg(primitive)),
                 1 => {
                     let other_value = extract_enum_value!(&builtin.arguments[0], Value::Integer(other_value) => other_value);
-                    Term::Primitive(Value::Integer(value + other_value))
+                    Term::Primitive(Value::Integer(other_value + value))
+                }
+                _ => return argument_n_error(builtin.identifier, builtin.n_arguments),
+            },
+            Term::Primitive(_) => return argument_type_error(builtin.identifier, &*rhs),
+            _ => return Ok((Rc::new(Term::Builtin(builtin.clone())), 0)),
+        },
+        B_INTEGER_SUBTRACT => match &*rhs {
+            Term::Primitive(primitive @ Value::Integer(value)) => match builtin.n_arguments {
+                2 => Term::Builtin(builtin.bind_arg(primitive)),
+                1 => {
+                    let other_value = extract_enum_value!(&builtin.arguments[0], Value::Integer(other_value) => other_value);
+                    Term::Primitive(Value::Integer(other_value - value))
+                }
+                _ => return argument_n_error(builtin.identifier, builtin.n_arguments),
+            },
+            Term::Primitive(_) => return argument_type_error(builtin.identifier, &*rhs),
+            _ => return Ok((Rc::new(Term::Builtin(builtin.clone())), 0)),
+        },
+        B_INTEGER_MULTIPLY => match &*rhs {
+            Term::Primitive(primitive @ Value::Integer(value)) => match builtin.n_arguments {
+                2 => Term::Builtin(builtin.bind_arg(primitive)),
+                1 => {
+                    let other_value = extract_enum_value!(&builtin.arguments[0], Value::Integer(other_value) => other_value);
+                    Term::Primitive(Value::Integer(other_value * value))
+                }
+                _ => return argument_n_error(builtin.identifier, builtin.n_arguments),
+            },
+            Term::Primitive(_) => return argument_type_error(builtin.identifier, &*rhs),
+            _ => return Ok((Rc::new(Term::Builtin(builtin.clone())), 0)),
+        },
+        B_INTEGER_DIVIDE => match &*rhs {
+            Term::Primitive(primitive @ Value::Integer(value)) => match builtin.n_arguments {
+                2 => Term::Builtin(builtin.bind_arg(primitive)),
+                1 => {
+                    if *value == 0 {
+                        return Err("[runtime] divide by zero".to_owned());
+                    }
+                    let other_value = extract_enum_value!(&builtin.arguments[0], Value::Integer(other_value) => other_value);
+                    Term::Primitive(Value::Integer(other_value / value))
                 }
                 _ => return argument_n_error(builtin.identifier, builtin.n_arguments),
             },

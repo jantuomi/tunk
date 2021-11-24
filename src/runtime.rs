@@ -183,34 +183,67 @@ pub fn reduce_term(
             }
         }
         Term::Builtin(_) => Ok((Rc::clone(&term_rc), 0)),
-        _ => todo!("reduce_term cases"),
+        Term::Lazy(symbol) => {
+            if resolve_lazy {
+                let table_lookup_value = symbol_table
+                    .get(symbol)
+                    .ok_or(format!("[runtime] symbol not defined: {}", symbol))?;
+
+                // println!("Expanded {} into\n{}\n", symbol, *table_lookup_value);
+                Ok((Rc::clone(table_lookup_value), 1))
+            } else {
+                Ok((term_rc, 0))
+            }
+        }
     }?;
 
     Ok((result_term, result_n))
 }
 
-const MAX_REDUCTION_ITERATIONS: usize = 1000;
+const MAX_REDUCTION_ITERATIONS: usize = 10000;
 
 pub fn repeatedly_reduce_term(
     symbol_table: &HashMap<String, Rc<Term>>,
     term_rc: Rc<Term>,
     bound_variable_opt: &Option<(usize, Rc<Term>)>,
-    resolve_lazy: bool,
-) -> ReductionResult {
+) -> Result<Rc<Term>, String> {
     let mut term = term_rc;
     let mut i: usize = 0;
     loop {
+        loop {
+            // println!("Reduce iteration #{}", i);
+            i += 1;
+            if i >= MAX_REDUCTION_ITERATIONS {
+                return Err("MAX_REDUCTION_ITERATIONS reached".to_owned());
+            }
+
+            let (result_term, substitution_n) =
+                reduce_term(&symbol_table, term.clone(), bound_variable_opt, false)?;
+
+            if cfg!(feature = "debug") {
+                println!("i = {}:\n{}\n", i, result_term);
+            }
+
+            if substitution_n > 0 {
+                term = result_term;
+            } else {
+                break;
+            }
+        }
+
+        // Once resolve_lazy = false has stabilized, do one round of resolve_lazy = true
+        // println!("Reduce iteration #{}", i);
         i += 1;
         if i >= MAX_REDUCTION_ITERATIONS {
             return Err("MAX_REDUCTION_ITERATIONS reached".to_owned());
         }
 
-        let (result_term, substitution_n) = reduce_term(
-            &symbol_table,
-            term.clone(),
-            bound_variable_opt,
-            resolve_lazy,
-        )?;
+        let (result_term, substitution_n) =
+            reduce_term(&symbol_table, term.clone(), bound_variable_opt, true)?;
+
+        if cfg!(feature = "debug") {
+            println!("i = {}:\n{}\n", i, result_term);
+        }
 
         if substitution_n > 0 {
             term = result_term;
@@ -218,7 +251,7 @@ pub fn repeatedly_reduce_term(
             break;
         }
     }
-    Ok((term, 0))
+    Ok(term)
 }
 
 fn process_expr_inner_unary(
@@ -349,7 +382,7 @@ pub fn process(
             }
             ast::Statement::Expression(expression) => {
                 let term = process_expr(&symbol_table, expression, &vec![]);
-                let (result_term, _) = repeatedly_reduce_term(&symbol_table, term, &None, false)?;
+                let result_term = repeatedly_reduce_term(&symbol_table, term, &None)?;
 
                 println!("[{}]: {}", index, result_term);
                 output_terms.push(result_term);
