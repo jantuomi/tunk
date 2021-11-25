@@ -28,6 +28,7 @@ pub enum Term {
     Primitive(Value),
     Lazy(String),
     Builtin(builtins::Builtin),
+    Command(&'static str, Rc<Term>),
 }
 
 impl Term {
@@ -38,6 +39,9 @@ impl Term {
             Term::Variable(v) => format!("{}Variable({})", indent_str, v),
             Term::Primitive(value) => format!("{}{}", indent_str, value),
             Term::Builtin(builtin) => format!("{}{}", indent_str, builtin),
+            Term::Command(command, term_rc) => {
+                format!("{}Command({}, {})", indent_str, command, term_rc)
+            }
             Term::Abstraction(v, body) => format!(
                 "{}Abstraction({})\n{}",
                 indent_str,
@@ -110,6 +114,7 @@ pub fn reduce_term(
 
     let (result_term, result_n) = match term {
         Term::Primitive(_) => Ok((Rc::clone(&term_rc), 0)),
+        Term::Command(_, _) => Ok((Rc::clone(&term_rc), 0)),
         Term::Variable(_) => substitute_var(Rc::clone(&term_rc), bound_variable_opt),
         Term::Application(lhs_rc, rhs_rc) => {
             let (subst_rhs_rc, rhs_n) = reduce_term(
@@ -389,6 +394,12 @@ pub fn process(
                 let result_term = repeatedly_reduce_term(symbol_table, term, &None)?;
 
                 println!("[{}]: {}", index, result_term);
+
+                match &*result_term {
+                    Term::Command(_, _) => builtins::perform_command(&result_term),
+                    _ => Ok(()),
+                }?;
+
                 output_terms.push(result_term);
             }
         }

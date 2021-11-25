@@ -38,8 +38,14 @@ impl fmt::Display for Builtin {
             arg_str.push_str(format!(" {}", argument).as_str());
         }
 
-        write!(f, "Builtin({}){}", self.identifier, arg_str)
+        write!(f, "Builtin({}{})", self.identifier, arg_str)
     }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Command {
+    pub identifier: &'static str,
+    pub term: Rc<Term>,
 }
 
 fn argument_type_error(builtin_id: &'static str, arg: &Term) -> Result<(Rc<Term>, usize), String> {
@@ -90,6 +96,9 @@ pub const B_INTEGER_MULTIPLY: &str = "int.mul";
 pub const B_INTEGER_DIVIDE: &str = "int.div";
 pub const B_STRING_EQ: &str = "string.eq?";
 pub const B_BOOL_TO_STRING: &str = "bool.to-string";
+pub const B_COMMAND_PRINTLN: &str = "cmd.println!";
+
+pub const C_PRINTLN: &str = "PrintLn";
 
 pub fn try_ast_symbol_to_builtin_term(symbol: &str) -> Option<Term> {
     let builtin = match symbol {
@@ -104,6 +113,7 @@ pub fn try_ast_symbol_to_builtin_term(symbol: &str) -> Option<Term> {
         B_INTEGER_DIVIDE => Builtin::new(B_INTEGER_DIVIDE, 2),
         B_STRING_EQ => Builtin::new(B_STRING_EQ, 2),
         B_BOOL_TO_STRING => Builtin::new(B_BOOL_TO_STRING, 1),
+        B_COMMAND_PRINTLN => Builtin::new(B_COMMAND_PRINTLN, 1),
         _ => return None,
     };
 
@@ -200,6 +210,14 @@ pub fn evaluate_builtin(builtin: &Builtin, rhs: Rc<Term>) -> Result<(Rc<Term>, u
             let inner = Rc::new(Term::Application(rhs, true_str_rc));
             Term::Application(inner, false_str_rc)
         }
+        B_COMMAND_PRINTLN => match &*rhs {
+            Term::Primitive(Value::String(_)) => match builtin.n_arguments {
+                1 => Term::Command(C_PRINTLN, rhs),
+                _ => return argument_n_error(builtin.identifier, builtin.n_arguments),
+            },
+            Term::Primitive(_) => return argument_type_error(builtin.identifier, &*rhs),
+            _ => return Ok((Rc::new(Term::Builtin(builtin.clone())), 0)),
+        },
         _ => {
             return Err(format!(
                 "[runtime] invalid builtin evaluated: {}",
@@ -209,4 +227,15 @@ pub fn evaluate_builtin(builtin: &Builtin, rhs: Rc<Term>) -> Result<(Rc<Term>, u
     };
 
     Ok((Rc::new(result_term), 1))
+}
+
+pub fn perform_command(command_term: &Term) -> Result<(), String> {
+    let (command, term) = extract_enum_value!(command_term, Term::Command(c, t) => (c, t));
+
+    match (*command, &**term) {
+        (builtins::C_PRINTLN, Term::Primitive(Value::String(str_val))) => println!("{}", str_val),
+        _ => return Err(format!("[runtime] invalid command: {}", command)),
+    }
+
+    Ok(())
 }
