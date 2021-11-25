@@ -65,29 +65,15 @@ fn argument_n_error(builtin_id: &'static str, n: usize) -> Result<(Rc<Term>, usi
 macro_rules! boolean_function {
     ($value:expr) => {
         match $value {
-            true => make_boolean_true_function(),
-            false => make_boolean_false_function(),
+            true => Term::Builtin(Builtin::new(B_TRUE, 0)),
+            false => Term::Builtin(Builtin::new(B_FALSE, 0)),
         }
     };
 }
 
-pub fn make_boolean_true_function() -> Term {
-    let x = advance_v();
-    let y = advance_v();
-    Term::Abstraction(x, Rc::new(Term::Abstraction(y, Rc::new(Term::Variable(x)))))
-}
-
-pub fn make_boolean_false_function() -> Term {
-    let x = advance_v();
-    let y = advance_v();
-    Term::Abstraction(x, Rc::new(Term::Abstraction(y, Rc::new(Term::Variable(y)))))
-}
-
-pub fn make_identity_function() -> Term {
-    let v = advance_v();
-    Term::Abstraction(v, Rc::new(Term::Variable(v)))
-}
-
+pub const B_TRUE: &str = "true";
+pub const B_FALSE: &str = "false";
+pub const B_ID: &str = "id";
 pub const B_INTEGER_EQ: &str = "int.eq?";
 pub const B_INTEGER_INCREMENT: &str = "int.inc";
 pub const B_INTEGER_ADD: &str = "int.add";
@@ -102,9 +88,9 @@ pub const C_PRINTLN: &str = "PrintLn";
 
 pub fn try_ast_symbol_to_builtin_term(symbol: &str) -> Option<Term> {
     let builtin = match symbol {
-        "true" => return Some(make_boolean_true_function()),
-        "false" => return Some(make_boolean_false_function()),
-        "id" => return Some(make_identity_function()),
+        B_TRUE => Builtin::new(B_TRUE, 0),
+        B_FALSE => Builtin::new(B_FALSE, 0),
+        B_ID => Builtin::new(B_ID, 0),
         B_INTEGER_EQ => Builtin::new(B_INTEGER_EQ, 2),
         B_INTEGER_INCREMENT => Builtin::new(B_INTEGER_INCREMENT, 1),
         B_INTEGER_ADD => Builtin::new(B_INTEGER_ADD, 2),
@@ -122,6 +108,15 @@ pub fn try_ast_symbol_to_builtin_term(symbol: &str) -> Option<Term> {
 
 pub fn evaluate_builtin(builtin: &Builtin, rhs: Rc<Term>) -> Result<(Rc<Term>, usize), String> {
     let result_term = match builtin.identifier {
+        B_TRUE => {
+            let y = advance_v();
+            Term::Abstraction(y, rhs)
+        }
+        B_FALSE => {
+            let y = advance_v();
+            Term::Abstraction(y, Rc::new(Term::Variable(y)))
+        }
+        B_ID => return Ok((rhs, 1)),
         B_INTEGER_EQ => match &*rhs {
             Term::Primitive(primitive @ Value::Integer(value)) => match builtin.n_arguments {
                 2 => Term::Builtin(builtin.bind_arg(primitive)),

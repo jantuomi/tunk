@@ -33,7 +33,8 @@ fn main() -> Result<(), String> {
     let command = args.next().unwrap();
     let subcommand_result = args.next();
     if subcommand_result.is_none() {
-        println!("usage: {c} run FILE\n       {c} repl", c = command.as_str());
+        println!("usage: {} run FILE", command.as_str());
+        println!("       {} repl", command.as_str());
         return Ok(());
     }
     let subcommand = subcommand_result.unwrap();
