@@ -7,7 +7,7 @@ use std::sync::atomic::Ordering;
 
 fn evaluate_from_source(
     content: String,
-    initial_symbol_table: Option<HashMap<String, Rc<Term>>>,
+    initial_symbol_table: Option<&mut HashMap<String, Rc<Term>>>,
 ) -> ProcessResult {
     use ast::Program;
     use pest::Parser;
@@ -136,7 +136,7 @@ fn reduce_parameterized_func() -> Result<(), String> {
     initial_symbol_table.insert("f".to_owned(), Rc::clone(&predefined_f));
 
     let (terms, symbol_table) =
-        evaluate_from_source(source.to_owned(), Some(initial_symbol_table))?;
+        evaluate_from_source(source.to_owned(), Some(&mut initial_symbol_table))?;
     assert_eq!(terms.len(), 1);
     let term = &terms[0];
 
@@ -356,7 +356,7 @@ fn problem_triangle_numbers() -> Result<(), String> {
             n
             (triangle (int.sub n 1)));
 
-    triangle 500;
+    triangle 100;
     ";
 
     let (terms, symbol_table) = evaluate_from_source(source.to_owned(), None)?;
@@ -364,7 +364,7 @@ fn problem_triangle_numbers() -> Result<(), String> {
     let term1 = &terms[0];
 
     let result_rc = repeatedly_reduce_term(&symbol_table, Rc::clone(term1), &None)?;
-    let expected = Term::Primitive(Value::Integer(125250));
+    let expected = Term::Primitive(Value::Integer(5050));
 
     assert_eq!(*result_rc, expected);
 

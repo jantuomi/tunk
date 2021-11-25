@@ -7,15 +7,15 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'prog-lang-dev1'",
+            "name": "Debug executable 'tunk'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=prog-lang-dev1",
-                    "--package=prog-lang-dev1"
+                    "--bin=tunk",
+                    "--package=tunk"
                 ],
                 "filter": {
-                    "name": "prog-lang-dev1",
+                    "name": "tunk",
                     "kind": "bin"
                 }
             },
@@ -27,16 +27,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'prog-lang-dev1'",
+            "name": "Debug unit tests in executable 'tunk'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--bin=prog-lang-dev1",
-                    "--package=prog-lang-dev1"
+                    "--bin=tunk",
+                    "--package=tunk"
                 ],
                 "filter": {
-                    "name": "prog-lang-dev1",
+                    "name": "tunk",
                     "kind": "bin"
                 }
             },
