@@ -32,7 +32,7 @@ pub enum Term {
 
 impl Term {
     fn fmt_with_indent(&self, indent: usize) -> String {
-        let indent_str = std::iter::repeat("|  ").take(indent).collect::<String>();
+        let indent_str = "|  ".repeat(indent);
         match self {
             Term::Lazy(symbol) => format!("{}Lazy({})", indent_str, symbol),
             Term::Variable(v) => format!("{}Variable({})", indent_str, v),
@@ -220,7 +220,7 @@ pub fn repeatedly_reduce_term(
             }
 
             let (result_term, substitution_n) =
-                reduce_term(&symbol_table, term.clone(), bound_variable_opt, false)?;
+                reduce_term(symbol_table, term.clone(), bound_variable_opt, false)?;
 
             if cfg!(feature = "debug") {
                 println!("i = {}:\n{}\n", i, result_term);
@@ -241,7 +241,7 @@ pub fn repeatedly_reduce_term(
         }
 
         let (result_term, substitution_n) =
-            reduce_term(&symbol_table, term.clone(), bound_variable_opt, true)?;
+            reduce_term(symbol_table, term.clone(), bound_variable_opt, true)?;
 
         if cfg!(feature = "debug") {
             println!("i = {}:\n{}\n", i, result_term);
@@ -259,7 +259,7 @@ pub fn repeatedly_reduce_term(
 fn process_expr_inner_unary(
     symbol_table: &HashMap<String, Rc<Term>>,
     inner: &ast::ExpressionInner,
-    bound_symbols: &Vec<(ast::Symbol, usize)>,
+    bound_symbols: &[(ast::Symbol, usize)],
 ) -> Rc<Term> {
     match inner {
         ast::ExpressionInner::IntegerLiteral(value) => {
@@ -272,19 +272,17 @@ fn process_expr_inner_unary(
             let bound_symbol_opt = bound_symbols
                 .iter()
                 .find(|(bound_symbol, _)| bound_symbol == value);
-            if bound_symbol_opt.is_some() {
-                return Rc::new(Term::Variable(bound_symbol_opt.unwrap().1));
+
+            if let Some(bound_symbol) = bound_symbol_opt {
+                return Rc::new(Term::Variable(bound_symbol.1));
             }
 
-            let table_lookup_value = symbol_table.get(value);
-            if table_lookup_value.is_some() {
-                let lookup_rc = table_lookup_value.unwrap();
-                return Rc::clone(lookup_rc);
+            if let Some(table_lookup_value) = symbol_table.get(value) {
+                return Rc::clone(table_lookup_value);
             }
 
-            let builtin_value = builtins::try_ast_symbol_to_builtin_term(value);
-            if builtin_value.is_some() {
-                return Rc::new(builtin_value.unwrap());
+            if let Some(builtin_value) = builtins::try_ast_symbol_to_builtin_term(value) {
+                return Rc::new(builtin_value);
             }
 
             Rc::new(Term::Lazy(value.clone()))
@@ -300,7 +298,7 @@ fn process_expr_inner_binary(
     symbol_table: &HashMap<String, Rc<Term>>,
     lhs: &ast::ExpressionInner,
     rhs: &ast::ExpressionInner,
-    bound_symbols: &Vec<(ast::Symbol, usize)>,
+    bound_symbols: &[(ast::Symbol, usize)],
 ) -> Rc<Term> {
     match lhs {
         ast::ExpressionInner::Expression(value_rc) => {
@@ -339,7 +337,7 @@ fn process_expr_inner_binary(
 fn process_expr(
     symbol_table: &HashMap<String, Rc<Term>>,
     expression: &ast::Expression,
-    bound_symbols: &Vec<(ast::Symbol, usize)>,
+    bound_symbols: &[(ast::Symbol, usize)],
 ) -> Rc<Term> {
     match expression {
         ast::Expression::Unary(inner) => {
@@ -354,7 +352,7 @@ fn process_expr(
 pub type ProcessResult = Result<(Vec<Rc<Term>>, HashMap<String, Rc<Term>>), String>;
 
 pub fn process(
-    program: &ast::Program,
+    program: &[ast::Statement],
     initial_symbol_table: Option<&mut HashMap<String, Rc<Term>>>,
 ) -> ProcessResult {
     let empty_symbol_table = &mut HashMap::new();
@@ -375,7 +373,7 @@ pub fn process(
                     .map(|param| (param.clone(), advance_v()))
                     .collect();
 
-                let mut term = process_expr(&symbol_table, expression, &bound_params);
+                let mut term = process_expr(symbol_table, expression, &bound_params);
 
                 bound_params.iter().rev().for_each(|(_, v)| {
                     term = Rc::new(Term::Abstraction(*v, Rc::clone(&term)));
@@ -384,8 +382,8 @@ pub fn process(
                 symbol_table.insert(symbol.clone(), term);
             }
             ast::Statement::Expression(expression) => {
-                let term = process_expr(&symbol_table, expression, &vec![]);
-                let result_term = repeatedly_reduce_term(&symbol_table, term, &None)?;
+                let term = process_expr(symbol_table, expression, &[]);
+                let result_term = repeatedly_reduce_term(symbol_table, term, &None)?;
 
                 println!("[{}]: {}", index, result_term);
                 output_terms.push(result_term);

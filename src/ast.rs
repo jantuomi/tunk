@@ -41,7 +41,7 @@ impl Statement {
             let mut parameters: Vec<Symbol> = vec![];
             let mut expression_opt: Option<Rc<Expression>> = None;
 
-            while let Some(p) = inner.next() {
+            for p in inner {
                 match p.as_rule() {
                     Rule::symbol => parameters.push(p.as_span().as_str().to_owned()),
                     Rule::expression => {
@@ -61,8 +61,8 @@ impl Statement {
 
             Statement::Definition {
                 symbol: symbol.to_owned(),
-                parameters: parameters,
-                expression: expression,
+                parameters,
+                expression,
             }
         }
 
@@ -117,7 +117,7 @@ pub enum Expression {
     Binary(ExpressionInner, ExpressionInner),
 }
 
-fn expression_vec_to_tuple(v: &Vec<ExpressionInner>) -> Rc<Expression> {
+fn expression_vec_to_tuple(v: &[ExpressionInner]) -> Rc<Expression> {
     match v.len() {
         1 => Rc::new(Expression::Unary(v[0].clone())),
         2 => Rc::new(Expression::Binary(v[0].clone(), v[1].clone())),

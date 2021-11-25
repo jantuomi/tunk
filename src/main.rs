@@ -89,7 +89,7 @@ fn main() -> Result<(), String> {
                         println!("{}:\n{}\n", symbol, *expr);
                     }
                     continue;
-                } else if !s.ends_with(";") && s != "" && !s.starts_with("#") {
+                } else if !s.ends_with(';') && !s.is_empty() && !s.starts_with('#') {
                     appending_input = true;
                     continue;
                 } else {
@@ -110,6 +110,6 @@ fn main() -> Result<(), String> {
                 }
             }
         }
-        _ => return Err("invalid subcommand".to_owned()),
+        _ => Err("invalid subcommand".to_owned()),
     }
 }

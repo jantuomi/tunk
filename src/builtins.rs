@@ -1,4 +1,3 @@
-use super::ast;
 use super::runtime::{advance_v, Term, Value};
 use super::*;
 use std::fmt;
@@ -14,9 +13,9 @@ pub struct Builtin {
 impl Builtin {
     pub fn new(identifier: &'static str, n_arguments: usize) -> Builtin {
         Builtin {
-            identifier: identifier,
+            identifier,
             arguments: vec![],
-            n_arguments: n_arguments,
+            n_arguments,
         }
     }
 
@@ -92,8 +91,8 @@ pub const B_INTEGER_DIVIDE: &str = "int.div";
 pub const B_STRING_EQ: &str = "string.eq?";
 pub const B_BOOL_TO_STRING: &str = "bool.to-string";
 
-pub fn try_ast_symbol_to_builtin_term(symbol: &ast::Symbol) -> Option<Term> {
-    let builtin = match symbol.as_str() {
+pub fn try_ast_symbol_to_builtin_term(symbol: &str) -> Option<Term> {
+    let builtin = match symbol {
         "true" => return Some(make_boolean_true_function()),
         "false" => return Some(make_boolean_false_function()),
         "id" => return Some(make_identity_function()),
