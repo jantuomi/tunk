@@ -1,0 +1,18 @@
+# Define 2-tuples
+pair a b fn = fn a b;
+first p = p true;
+second p = p false;
+
+# Define Church encoded lists in one-pair-as-a-list-node style
+cons = pair;
+head = first;
+tail = second;
+nil = false;
+_a x y z = false;
+isnil l = l _a true;
+
+# Test them out
+list1 = cons "1" nil;
+list2 = cons "2" list1;
+list3 = cons "3" list2;
+
