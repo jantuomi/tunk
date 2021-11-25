@@ -60,7 +60,7 @@ fn main() -> Result<(), String> {
             use std::io::{stdin, stdout, Write};
             use std::rc::Rc;
 
-            println!("REPL");
+            println!("Tunk REPL");
             println!("\"#exit\" to exit");
             println!("\"#symbols\" to display symbol table\n");
 
