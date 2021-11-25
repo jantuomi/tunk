@@ -7,7 +7,7 @@
 - interpreted
 - general use
 
-programming language. Tunk is a hobby project written for educational purposes.
+programming language. Tunk is a hobby project written for educational purposes, and is inspired by languages such as Elm and Haskell.
 
 ## Running Tunk
 
@@ -22,6 +22,16 @@ Run `tunk` on a source file:
 Run `tunk` REPL:
 
     target/release/tunk repl
+
+## TODO
+
+- 𝛂-conversion to avoid variable name collisions in recursive functions
+- A pipeline operator (`argument |> function`)
+- A function composition operator (`inner >> outer`)
+- tail call recursion optimization
+- more primitives: `list`, `tuple`
+- list/monad operations `map`, `filter`, `reduce`
+- an effect system for handling IO etc.
 
 ## Author
 

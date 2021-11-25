@@ -1,8 +1,9 @@
+rec n = triangle (int.sub n 1);
 triangle n = int.eq? n 1
         1
         (int.add
             n
-            (triangle (int.sub n 1)));
+            (rec n));
 
 triangle 500;
 
