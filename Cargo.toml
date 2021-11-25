@@ -11,6 +11,7 @@ debug = []
 [dependencies]
 pest = "2.0"
 pest_derive = "2.0"
+rustyline = "9.0.0"
 
 [dev-dependencies]
 serial_test = "0.5.1"

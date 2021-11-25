@@ -21,6 +21,8 @@ macro_rules! extract_enum_value {
     };
 }
 
+const REPL_HISTORY_FILENAME: &str = "repl_history.txt";
+
 fn main() -> Result<(), String> {
     use ast::Program;
     use pest::Parser;
@@ -56,62 +58,101 @@ fn main() -> Result<(), String> {
         }
         "repl" => {
             use runtime::*;
+            use rustyline::error::ReadlineError;
+            use rustyline::Editor;
             use std::collections::HashMap;
-            use std::io::{stdin, stdout, Write};
             use std::rc::Rc;
 
             println!("Tunk REPL");
-            println!("\"#exit\" to exit");
-            println!("\"#symbols\" to display symbol table\n");
+            println!("\nCommands:");
+            println!("#exit         exit REPL");
+            println!("#symbols      display symbol table\n");
+
+            let mut rl = Editor::<()>::new();
+            if rl.load_history(REPL_HISTORY_FILENAME).is_err() {
+                println!(
+                    "[repl] no history file found, will store REPL history in {}",
+                    REPL_HISTORY_FILENAME
+                );
+            }
 
             let mut symbol_table: HashMap<String, Rc<Term>> = HashMap::new();
-            let mut s = String::new();
-            let mut appending_input = false;
+            let mut line: String = "".to_owned();
+            let mut is_appending = false;
             loop {
-                if appending_input {
-                    s.push('\n');
-                    print!("| ");
+                let readline = if is_appending {
+                    line.push('\n');
+                    rl.readline("| ")
                 } else {
-                    s.clear();
-                    print!("> ");
-                }
-                let _ = stdout().flush();
-                let read_line_result = stdin().read_line(&mut s);
-                if read_line_result.is_err() {
-                    println!("{}\n", read_line_result.unwrap_err());
-                    continue;
-                }
-                s = s.trim().to_owned();
-                if s.starts_with("#exit") {
-                    return Ok(());
-                } else if s.starts_with("#symbols") {
-                    if symbol_table.is_empty() {
-                        println!("[repl] symbol table is empty");
-                    }
-                    for (symbol, expr) in &symbol_table {
-                        println!("{}:\n{}\n", symbol, *expr);
-                    }
-                    continue;
-                } else if !s.ends_with(';') && !s.is_empty() && !s.starts_with('#') {
-                    appending_input = true;
-                    continue;
-                } else {
-                    appending_input = false;
-                }
+                    line.clear();
+                    rl.readline("> ")
+                };
 
-                let parse_tree_result = lparser::LParser::parse(lparser::Rule::program, &s);
-                if parse_tree_result.is_err() {
-                    println!("{}\n", parse_tree_result.unwrap_err());
-                    continue;
-                }
-                let mut parse_tree = parse_tree_result.unwrap();
-                let syntax_tree: Program = ast::from_parse_tree(&mut parse_tree);
-                let process_result = runtime::process(&syntax_tree, Some(&mut symbol_table));
-                if process_result.is_err() {
-                    println!("{}\n", process_result.unwrap_err());
-                    continue;
-                }
+                match readline {
+                    Ok(raw_line) => {
+                        line.push_str(raw_line.trim());
+
+                        if line.starts_with("#exit") {
+                            rl.add_history_entry(line.as_str());
+                            rl.save_history(REPL_HISTORY_FILENAME).unwrap();
+                            break;
+                        } else if line.starts_with("#symbols") {
+                            if symbol_table.is_empty() {
+                                println!("[repl] symbol table is empty");
+                            }
+                            for (symbol, expr) in &symbol_table {
+                                println!("{}:\n{}\n", symbol, *expr);
+                            }
+
+                            rl.add_history_entry(line.as_str());
+                            rl.save_history(REPL_HISTORY_FILENAME).unwrap();
+                            continue;
+                        } else if !line.ends_with(';') && !line.is_empty() && !line.starts_with('#')
+                        {
+                            is_appending = true;
+                            continue;
+                        } else {
+                            is_appending = false;
+                        }
+
+                        rl.add_history_entry(line.as_str());
+                        // Regular execution
+                        let parse_tree_result =
+                            lparser::LParser::parse(lparser::Rule::program, &line);
+                        if let Err(err) = parse_tree_result {
+                            println!("{}\n", err);
+
+                            rl.save_history(REPL_HISTORY_FILENAME).unwrap();
+                            continue;
+                        }
+
+                        let mut parse_tree = parse_tree_result.unwrap();
+                        let syntax_tree: Program = ast::from_parse_tree(&mut parse_tree);
+
+                        let process_result =
+                            runtime::process(&syntax_tree, Some(&mut symbol_table));
+                        if let Err(err) = process_result {
+                            println!("{}\n", err);
+                        }
+
+                        rl.save_history(REPL_HISTORY_FILENAME).unwrap();
+                    }
+                    Err(ReadlineError::Interrupted) => {
+                        println!("CTRL-C");
+                        break;
+                    }
+                    Err(ReadlineError::Eof) => {
+                        println!("CTRL-D");
+                        break;
+                    }
+                    Err(err) => {
+                        println!("{:?}", err);
+                        break;
+                    }
+                };
             }
+
+            Ok(())
         }
         _ => Err("invalid subcommand".to_owned()),
     }
