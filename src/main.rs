@@ -85,6 +85,9 @@ fn main() -> Result<(), String> {
                 if s.starts_with("#exit") {
                     return Ok(());
                 } else if s.starts_with("#symbols") {
+                    if symbol_table.is_empty() {
+                        println!("[repl] symbol table is empty");
+                    }
                     for (symbol, expr) in &symbol_table {
                         println!("{}:\n{}\n", symbol, *expr);
                     }
