@@ -368,6 +368,9 @@ pub fn process(
                 parameters,
                 expression,
             } => {
+                if symbol_table.contains_key(symbol) {
+                    return Err(format!("[runtime] symbol already defined: {}", symbol));
+                }
                 let bound_params: Vec<(ast::Symbol, usize)> = parameters
                     .iter()
                     .map(|param| (param.clone(), advance_v()))
