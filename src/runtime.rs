@@ -184,6 +184,8 @@ pub fn reduce_term(
         }
         Term::Builtin(_) => Ok((Rc::clone(&term_rc), 0)),
         Term::Lazy(symbol) => {
+            // TODO: alpha conversion
+            // Lift all substituted vs by current v_inc, and then update v_inc to match
             if resolve_lazy {
                 let table_lookup_value = symbol_table
                     .get(symbol)
@@ -353,10 +355,11 @@ pub type ProcessResult = Result<(Vec<Rc<Term>>, HashMap<String, Rc<Term>>), Stri
 
 pub fn process(
     program: &ast::Program,
-    initial_symbol_table: Option<HashMap<String, Rc<Term>>>,
+    initial_symbol_table: Option<&mut HashMap<String, Rc<Term>>>,
 ) -> ProcessResult {
-    let mut symbol_table: HashMap<String, Rc<Term>> =
-        initial_symbol_table.unwrap_or(HashMap::new());
+    let empty_symbol_table = &mut HashMap::new();
+    let symbol_table: &mut HashMap<String, Rc<Term>> =
+        initial_symbol_table.unwrap_or(empty_symbol_table);
 
     let mut output_terms: Vec<Rc<Term>> = vec![];
 
@@ -390,5 +393,5 @@ pub fn process(
         }
     }
 
-    Ok((output_terms, symbol_table))
+    Ok((output_terms, symbol_table.clone()))
 }
