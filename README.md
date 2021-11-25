@@ -17,7 +17,7 @@ Build the `tunk` interpreter with `cargo`:
 
 Run `tunk` on a source file:
 
-    target/release/tunk run samples/sample1.tunk
+    target/release/tunk run samples/recursion.tunk
 
 Run `tunk` REPL:
 
@@ -26,6 +26,7 @@ Run `tunk` REPL:
 ## TODO
 
 - 𝛂-conversion to avoid variable name collisions in recursive functions
+- anonymous function syntax (`\x y -> x`)
 - A pipeline operator (`argument |> function`)
 - A function composition operator (`inner >> outer`)
 - tail call recursion optimization

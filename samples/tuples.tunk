@@ -1,0 +1,28 @@
+# Define a constructor for making a 2-tuple (a, b)
+new-pair a b fn = fn a b;
+
+# Define selector functions for picking out an element from the 2-tuple
+pair-first p = p true;
+pair-second p = p false;
+
+# Test them out
+my-pair = new-pair 1 2;
+pair-first my-pair;
+pair-second my-pair;
+
+# Define a constructor for making a 3-tuple (a, b, c)
+new-triple a b c fn = fn a b c;
+
+# Define selector functions for picking out an element from the 3-tuple
+select1 a b c = a;
+select2 a b c = b;
+select3 a b c = c;
+triple-first t = t select1;
+triple-second t = t select2;
+triple-third t = t select3;
+
+# Test them out
+my-triple = new-triple "a" "b" "c";
+triple-first my-triple;
+triple-second my-triple;
+triple-third my-triple;
